@@ -1,5 +1,5 @@
 // Dream Melody — a notation editor that stores scale degrees, not pitches.
-// Copyright (C) 2026 Zhenning Zhang
+// Copyright (C) 2026 mizaimao
 //
 // This program is free software: you can redistribute it and/or modify it
 // under the terms of the GNU Affero General Public License as published by
@@ -133,25 +133,22 @@ pub const FIXTURE_B_SPELLINGS: [(u32, Tpc); 4] = [
     (5, Tpc::new(Letter::F, 1)),
 ];
 
-/// Fixture C — Fixture A transposed to C-flat major, `-3` on the line of
-/// fifths. Used from stage 2.
+/// Fixture C — Fixture A transposed to F-flat major, which must produce a
+/// double flat.
 ///
-/// Note that this key alone does **not** exercise a double accidental: every
-/// degree of Fixture A is diatonic, and C-flat major spells all seven degrees
-/// with single flats. See [`FIXTURE_C_DOUBLE_FLAT_SHIFT`].
-pub const FIXTURE_C_SHIFT: i32 = -3;
-/// The spellings Fixture C produces, as `(degree, tpc)` — all single flats.
+/// A-flat to F-flat is `-4` on the line of fifths. Used from stage 2.
+///
+/// C-flat major, the original target in SPEC section 5, does not reach a double
+/// accidental: every note in Fixture A is diatonic, and C-flat major spells all
+/// seven of its degrees with single flats. F-flat major is the next key outward
+/// and is where degree 4 becomes B-double-flat.
+pub const FIXTURE_C_SHIFT: i32 = -4;
+/// The spellings Fixture C must produce, as `(degree, tpc)`.
 pub const FIXTURE_C_SPELLINGS: [(u32, Tpc); 4] = [
-    (1, Tpc::new(Letter::C, -1)),
-    (2, Tpc::new(Letter::D, -1)),
-    (4, Tpc::new(Letter::F, -1)),
-    (5, Tpc::new(Letter::G, -1)),
+    (1, Tpc::new(Letter::F, -1)),
+    (2, Tpc::new(Letter::G, -1)),
+    (4, FIXTURE_C_DOUBLE_FLAT),
+    (5, Tpc::new(Letter::C, -1)),
 ];
-
-/// The shift that actually reaches a double flat: A-flat to F-flat major, `-4`.
-///
-/// Degree 4 becomes B-double-flat. Kept here so stage 2 can test the
-/// double-accidental path the SPEC asks for, whichever key we settle on.
-pub const FIXTURE_C_DOUBLE_FLAT_SHIFT: i32 = -4;
-/// Degree 4 of F-flat major: B-double-flat, `Tpc(-9)`.
+/// Degree 4 of F-flat major: B-double-flat, `Tpc(-9)`. The point of Fixture C.
 pub const FIXTURE_C_DOUBLE_FLAT: Tpc = Tpc::new(Letter::B, -2);

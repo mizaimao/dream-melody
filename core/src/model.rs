@@ -1,5 +1,5 @@
 // Dream Melody — a notation editor that stores scale degrees, not pitches.
-// Copyright (C) 2026 Zhenning Zhang
+// Copyright (C) 2026 mizaimao
 //
 // This program is free software: you can redistribute it and/or modify it
 // under the terms of the GNU Affero General Public License as published by

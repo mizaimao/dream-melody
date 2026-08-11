@@ -1,5 +1,5 @@
 // Dream Melody — a notation editor that stores scale degrees, not pitches.
-// Copyright (C) 2026 Zhenning Zhang
+// Copyright (C) 2026 mizaimao
 //
 // This program is free software: you can redistribute it and/or modify it
 // under the terms of the GNU Affero General Public License as published by
@@ -27,7 +27,10 @@ use dream_melody_core::duration::{EIGHTH, WHOLE, ZERO};
 use dream_melody_core::model::{Note, TimeSignature};
 use dream_melody_core::pitch::{Letter, Tpc};
 
-use support::{FIXTURE_A_GRID, FIXTURE_A_MIDI, fixture_a};
+use support::{
+    A_FLAT, B_FLAT, D_FLAT, E_FLAT, FIXTURE_A_GRID, FIXTURE_A_MIDI, FIXTURE_B_SHIFT,
+    FIXTURE_B_SPELLINGS, FIXTURE_C_DOUBLE_FLAT, FIXTURE_C_SHIFT, FIXTURE_C_SPELLINGS, fixture_a,
+};
 
 /// Fixture D — the octave bug. A single B-sharp 4 must report MIDI 72.
 ///
@@ -95,6 +98,63 @@ fn fixture_a_sounds_the_expected_pitches() {
         .map(Note::midi)
         .collect();
     assert_eq!(midi, FIXTURE_A_MIDI);
+}
+
+/// Fixture A's four degrees, as `(degree, tpc)` in its home key of A-flat.
+const FIXTURE_A_SPELLINGS: [(u32, Tpc); 4] = [(1, A_FLAT), (2, B_FLAT), (4, D_FLAT), (5, E_FLAT)];
+
+/// Checks the transposition targets before stage 2 relies on them.
+///
+/// Shifting the line of fifths is arithmetic, not yet the transposition API, so
+/// this validates the fixture data rather than the feature.
+#[test]
+fn fixture_b_and_c_targets_land_where_the_spec_says() {
+    let shifted = |shift: i32| -> Vec<(u32, Tpc)> {
+        FIXTURE_A_SPELLINGS
+            .iter()
+            .map(|&(degree, tpc)| (degree, Tpc(tpc.0 + shift)))
+            .collect()
+    };
+
+    // Fixture B — B major, all sharps and naturals, no flat anywhere.
+    assert_eq!(shifted(FIXTURE_B_SHIFT), FIXTURE_B_SPELLINGS);
+    assert!(
+        FIXTURE_B_SPELLINGS
+            .iter()
+            .all(|(_, tpc)| tpc.accidental() >= 0)
+    );
+
+    // Fixture C — F-flat major, and degree 4 is the double flat it exists for.
+    assert_eq!(shifted(FIXTURE_C_SHIFT), FIXTURE_C_SPELLINGS);
+    assert_eq!(FIXTURE_C_DOUBLE_FLAT.to_string(), "Bbb");
+    assert_eq!(FIXTURE_C_DOUBLE_FLAT, Tpc(-9));
+    assert!(
+        FIXTURE_C_SPELLINGS
+            .iter()
+            .any(|(_, tpc)| tpc.accidental_depth() > 0),
+        "Fixture C must reach a double accidental"
+    );
+}
+
+/// Why Fixture C moved off C-flat major: that key cannot reach a double flat
+/// with a melody as diatonic as Fixture A.
+#[test]
+fn c_flat_major_would_have_tested_nothing() {
+    let c_flat_major: Vec<Tpc> = FIXTURE_A_SPELLINGS
+        .iter()
+        .map(|&(_, tpc)| Tpc(tpc.0 - 3))
+        .collect();
+    assert_eq!(
+        c_flat_major
+            .iter()
+            .map(Tpc::to_string)
+            .collect::<Vec<String>>(),
+        ["Cb", "Db", "Fb", "Gb"]
+    );
+    assert!(
+        c_flat_major.iter().all(|tpc| tpc.accidental_depth() == 0),
+        "every degree is a single flat, so no double accidental is exercised"
+    );
 }
 
 /// The spelling ambiguity the fixture exists to pin down.

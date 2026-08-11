@@ -155,9 +155,21 @@ These are the acceptance tests. Write them first.
    Transposing up a minor second from C major yields D-flat major (flats), not
    C-sharp major (sharps), when the target key signature has fewer accidentals.
 
-3. **Every bar sums exactly to the time signature.**
-   Bar validation is a model-level check, not a UI convenience. A document that
-   violates it is invalid and cannot be saved.
+   The core operation takes an *interval*, not a semitone count, because
+   `tpc + k` already decides spelling: `k = -5` gives D-flat and `k = +7` gives
+   C-sharp, and both are "up one semitone". A convenience layer may accept
+   semitones and pick the `k` with fewer accidentals, but it is a layer, not the
+   primitive.
+
+3. **The timeline tiles, and fills whole bars.**
+   Events must cover the track with no gap and no overlap, and the total length
+   must be a whole number of bars. Stated this way rather than as "every bar
+   sums to the time signature", because a note may legitimately cross a barline
+   — that is exactly what a tie notates, and the model stores it as one note.
+
+   This is a model-level **query**, not an assertion. A track under edit is
+   incomplete between keystrokes and must stay loadable and savable; the editor
+   surfaces the report, and export refuses on it.
 
 4. **MIDI export round-trips onset and duration exactly.**
    Rational arithmetic in, no float drift out.
@@ -187,8 +199,16 @@ z E A E A E A B | d z B E d2 B E |]
 **Fixture B — enharmonic transposition.** Fixture A transposed to B major.
 Must produce sharps.
 
-**Fixture C — double accidentals.** Fixture A transposed to C-flat major.
-Must produce a double flat and must not panic.
+**Fixture C — double accidentals.** Fixture A transposed to **F-flat major**
+(`-4` on the line of fifths). Degree 4 becomes B-double-flat, `Tpc(-9)`. Must
+produce that double flat and must not panic.
+
+Not C-flat major, which was the original target here and does not work: every
+note in Fixture A is diatonic, and C-flat major spells all seven of its degrees
+with single flats, so the transposition comes out C-flat, D-flat, F-flat,
+G-flat and the fixture passes while testing nothing. F-flat major is the next
+key outward and is the nearest one Fixture A actually reaches a double
+accidental in.
 
 **Fixture D — the octave bug.** A single B#4. Must report MIDI 72.
 
