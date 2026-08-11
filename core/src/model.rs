@@ -85,6 +85,45 @@ pub enum Mode {
     Locrian,
 }
 
+impl Mode {
+    /// Every mode, in the order their tonics sit on the line of fifths.
+    pub const ALL: [Mode; 7] = [
+        Mode::Lydian,
+        Mode::Major,
+        Mode::Mixolydian,
+        Mode::Dorian,
+        Mode::Minor,
+        Mode::Phrygian,
+        Mode::Locrian,
+    ];
+
+    /// The name used in text formats and in the UI.
+    pub const fn name(self) -> &'static str {
+        match self {
+            Mode::Major => "Major",
+            Mode::Minor => "Minor",
+            Mode::Dorian => "Dorian",
+            Mode::Phrygian => "Phrygian",
+            Mode::Lydian => "Lydian",
+            Mode::Mixolydian => "Mixolydian",
+            Mode::Locrian => "Locrian",
+        }
+    }
+
+    /// Reads a mode by name, case-insensitively.
+    pub fn from_name(name: &str) -> Option<Mode> {
+        Mode::ALL
+            .into_iter()
+            .find(|mode| mode.name().eq_ignore_ascii_case(name))
+    }
+}
+
+impl fmt::Display for Mode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.name())
+    }
+}
+
 /// A sounding note.
 ///
 /// `octave` is scientific and **letter-based, not pitch-based**: B-sharp 4 is

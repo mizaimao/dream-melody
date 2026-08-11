@@ -28,6 +28,7 @@
 
 pub mod duration;
 pub mod interval;
+pub mod jianpu;
 pub mod json;
 pub mod model;
 pub mod pitch;

@@ -200,9 +200,63 @@ impl fmt::Display for Tpc {
     }
 }
 
+/// Why a spelling could not be read.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ParseTpcError {
+    /// The text that could not be read.
+    pub text: String,
+}
+
+impl fmt::Display for ParseTpcError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?} is not a note spelling", self.text)
+    }
+}
+
+impl std::error::Error for ParseTpcError {}
+
+impl core::str::FromStr for Tpc {
+    type Err = ParseTpcError;
+
+    /// Reads what [`Display`](fmt::Display) writes: `C`, `F#`, `Bb`, `Bbb`,
+    /// `Fx`, `F#x`.
+    fn from_str(text: &str) -> Result<Tpc, ParseTpcError> {
+        let fail = || ParseTpcError {
+            text: text.to_string(),
+        };
+        let mut chars = text.chars();
+        let letter = match chars.next().ok_or_else(fail)? {
+            'C' => Letter::C,
+            'D' => Letter::D,
+            'E' => Letter::E,
+            'F' => Letter::F,
+            'G' => Letter::G,
+            'A' => Letter::A,
+            'B' => Letter::B,
+            _ => return Err(fail()),
+        };
+
+        let mut accidental = 0;
+        for symbol in chars {
+            accidental += match symbol {
+                'b' => -1,
+                '#' => 1,
+                'x' => 2,
+                _ => return Err(fail()),
+            };
+        }
+        // Flats and sharps in the same breath are a contradiction, not a note.
+        if text.contains('b') && (text.contains('#') || text.contains('x')) {
+            return Err(fail());
+        }
+        Ok(Tpc::new(letter, accidental))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::str::FromStr;
 
     /// The table from the module docs, spelled out as the source of truth.
     const LINE_OF_FIFTHS: [(i32, &str); 17] = [
@@ -241,6 +295,21 @@ mod tests {
                 tpc,
                 "tpc {value} did not survive a spelling round trip"
             );
+        }
+    }
+
+    #[test]
+    fn every_spelling_reads_back_as_itself() {
+        for value in -60..=60 {
+            let tpc = Tpc(value);
+            assert_eq!(Tpc::from_str(&tpc.to_string()), Ok(tpc), "tpc {value}");
+        }
+    }
+
+    #[test]
+    fn nonsense_spellings_are_refused() {
+        for text in ["", "H", "Cb#", "C#b", "Cq", "4", " C", "Cbb "] {
+            assert!(Tpc::from_str(text).is_err(), "{text:?} should not parse");
         }
     }
 
