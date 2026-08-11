@@ -1,0 +1,499 @@
+// Dream Melody — a notation editor that stores scale degrees, not pitches.
+// Copyright (C) 2026 Zhenning Zhang
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or (at your
+// option) any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License
+// for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+//! The document model: notes, rests, tracks, and the timeline rules they obey.
+//!
+//! Ties are not stored. A tie joins two noteheads of the same pitch performed
+//! as one sustained sound, and exists only because notation cannot draw a note
+//! crossing a barline. Two tied noteheads are therefore one [`Note`] with the
+//! summed duration, and the renderer splits it again when drawing. "How long is
+//! this note" always has a direct answer.
+//!
+//! Slurs are not ties and are not modelled at all.
+
+use core::fmt;
+
+use crate::duration::{self, Duration};
+use crate::pitch::Tpc;
+
+/// A time signature, as written: `4/4` is `beats = 4, beat_value = 4`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct TimeSignature {
+    /// Beats per bar — the upper numeral.
+    pub beats: u32,
+    /// The note value that gets one beat — the lower numeral.
+    pub beat_value: u32,
+}
+
+impl TimeSignature {
+    /// Common time, `4/4`.
+    pub const COMMON: TimeSignature = TimeSignature {
+        beats: 4,
+        beat_value: 4,
+    };
+
+    /// How much music fills one bar, in whole notes.
+    ///
+    /// Returns `None` for a zero `beat_value`, which is not a time signature.
+    pub fn bar_length(self) -> Option<Duration> {
+        duration::bar_length(self.beats, self.beat_value)
+    }
+}
+
+impl fmt::Display for TimeSignature {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}/{}", self.beats, self.beat_value)
+    }
+}
+
+/// The mode a track's tonic is read in.
+///
+/// This selects which scale degree the tonic sits on, which is what a numbered
+/// notation (jianpu/简谱) reader needs; it does not change how pitch is stored.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
+pub enum Mode {
+    /// Ionian.
+    #[default]
+    Major,
+    /// Aeolian — natural minor.
+    Minor,
+    /// Dorian.
+    Dorian,
+    /// Phrygian.
+    Phrygian,
+    /// Lydian.
+    Lydian,
+    /// Mixolydian.
+    Mixolydian,
+    /// Locrian.
+    Locrian,
+}
+
+/// A sounding note.
+///
+/// `octave` is scientific and **letter-based, not pitch-based**: B-sharp 4 is
+/// octave 4 and sounds as MIDI 72, because the letter B belongs to octave 4
+/// regardless of the sharp pushing it above C5.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Note {
+    /// Line-of-fifths position, C = 0.
+    pub tpc: Tpc,
+    /// Scientific octave, where C4 is middle C. Follows the letter.
+    pub octave: i32,
+    /// Whole notes from the start of the track.
+    pub onset: Duration,
+    /// Length in whole notes, with any tied values already summed.
+    pub dur: Duration,
+}
+
+impl Note {
+    /// Builds a note.
+    pub fn new(tpc: Tpc, octave: i32, onset: Duration, dur: Duration) -> Note {
+        Note {
+            tpc,
+            octave,
+            onset,
+            dur,
+        }
+    }
+
+    /// The MIDI note number, where C4 (middle C) is 60.
+    ///
+    /// Derived from the letter's octave, not from a folded pitch class, so
+    /// B-sharp 4 gives 72 and C-flat 4 gives 59.
+    pub fn midi(&self) -> i32 {
+        (self.octave + 1) * 12 + self.tpc.letter().semitone() + self.tpc.accidental()
+    }
+
+    /// Where the note stops sounding, in whole notes from the start.
+    pub fn end(&self) -> Duration {
+        self.onset + self.dur
+    }
+}
+
+/// A silence.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Rest {
+    /// Whole notes from the start of the track.
+    pub onset: Duration,
+    /// Length in whole notes.
+    pub dur: Duration,
+}
+
+impl Rest {
+    /// Builds a rest.
+    pub fn new(onset: Duration, dur: Duration) -> Rest {
+        Rest { onset, dur }
+    }
+
+    /// Where the rest ends, in whole notes from the start.
+    pub fn end(&self) -> Duration {
+        self.onset + self.dur
+    }
+}
+
+/// One entry on a track's timeline.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Event {
+    /// A sounding note.
+    Note(Note),
+    /// A silence.
+    Rest(Rest),
+}
+
+impl Event {
+    /// Whole notes from the start of the track.
+    pub fn onset(&self) -> Duration {
+        match self {
+            Event::Note(note) => note.onset,
+            Event::Rest(rest) => rest.onset,
+        }
+    }
+
+    /// Length in whole notes.
+    pub fn dur(&self) -> Duration {
+        match self {
+            Event::Note(note) => note.dur,
+            Event::Rest(rest) => rest.dur,
+        }
+    }
+
+    /// Where the event ends, in whole notes from the start.
+    pub fn end(&self) -> Duration {
+        self.onset() + self.dur()
+    }
+
+    /// The note, if this event sounds.
+    pub fn as_note(&self) -> Option<&Note> {
+        match self {
+            Event::Note(note) => Some(note),
+            Event::Rest(_) => None,
+        }
+    }
+}
+
+impl From<Note> for Event {
+    fn from(note: Note) -> Event {
+        Event::Note(note)
+    }
+}
+
+impl From<Rest> for Event {
+    fn from(rest: Rest) -> Event {
+        Event::Rest(rest)
+    }
+}
+
+/// A single monophonic voice.
+///
+/// One note sounds at a time. `tonic_tpc` is per-track on purpose: a B-flat
+/// clarinet part and a capo-1 guitar part are the same mechanism.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Track {
+    /// Display name, such as an instrument.
+    pub name: String,
+    /// The tonic this track's scale degrees are measured from.
+    pub tonic_tpc: Tpc,
+    /// The mode the tonic is read in.
+    pub mode: Mode,
+    /// Events in timeline order, sorted by onset.
+    pub events: Vec<Event>,
+}
+
+impl Track {
+    /// Builds a track, sorting the events by onset.
+    pub fn new(
+        name: impl Into<String>,
+        tonic_tpc: Tpc,
+        mode: Mode,
+        events: impl IntoIterator<Item = Event>,
+    ) -> Track {
+        let mut events: Vec<Event> = events.into_iter().collect();
+        events.sort_by_key(|event| event.onset());
+        Track {
+            name: name.into(),
+            tonic_tpc,
+            mode,
+            events,
+        }
+    }
+
+    /// Where the last event ends, in whole notes. Zero for an empty track.
+    pub fn length(&self) -> Duration {
+        self.events
+            .iter()
+            .map(Event::end)
+            .max()
+            .unwrap_or(duration::ZERO)
+    }
+
+    /// Reports every way this track's timeline is malformed.
+    ///
+    /// This is a query, not an assertion. A track under edit is legitimately
+    /// incomplete between keystrokes; callers decide when a report matters —
+    /// the editor surfaces it, export refuses on it.
+    ///
+    /// A note may cross a barline, since that is exactly what a tie is for.
+    /// What may not happen is a gap, an overlap, or a final bar left part-full.
+    pub fn validate(&self, time_sig: TimeSignature) -> Vec<TimelineIssue> {
+        let mut issues = Vec::new();
+        let mut cursor = duration::ZERO;
+
+        for (index, event) in self.events.iter().enumerate() {
+            if event.dur() <= duration::ZERO {
+                issues.push(TimelineIssue::NonPositiveDuration {
+                    index,
+                    dur: event.dur(),
+                });
+            }
+            if event.onset() > cursor {
+                issues.push(TimelineIssue::Gap {
+                    before: index,
+                    from: cursor,
+                    to: event.onset(),
+                });
+            } else if event.onset() < cursor {
+                issues.push(TimelineIssue::Overlap {
+                    index,
+                    onset: event.onset(),
+                    previous_end: cursor,
+                });
+            }
+            cursor = cursor.max(event.end());
+        }
+
+        match time_sig.bar_length() {
+            None => issues.push(TimelineIssue::InvalidTimeSignature { time_sig }),
+            Some(bar) if !(cursor / bar).is_integer() => {
+                issues.push(TimelineIssue::PartialFinalBar { total: cursor, bar });
+            }
+            Some(_) => {}
+        }
+
+        issues
+    }
+}
+
+/// A score.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Document {
+    /// Title, as displayed.
+    pub title: String,
+    /// Voices. The UI shows one for now; the model has never assumed that.
+    pub tracks: Vec<Track>,
+    /// Time signature, document-wide.
+    pub time_sig: TimeSignature,
+    /// Tempo in quarter notes per minute.
+    pub bpm: u32,
+}
+
+impl Document {
+    /// Builds a document.
+    pub fn new(
+        title: impl Into<String>,
+        time_sig: TimeSignature,
+        bpm: u32,
+        tracks: impl IntoIterator<Item = Track>,
+    ) -> Document {
+        Document {
+            title: title.into(),
+            tracks: tracks.into_iter().collect(),
+            time_sig,
+            bpm,
+        }
+    }
+
+    /// Validates every track, pairing each issue with its track index.
+    pub fn validate(&self) -> Vec<(usize, TimelineIssue)> {
+        self.tracks
+            .iter()
+            .enumerate()
+            .flat_map(|(index, track)| {
+                track
+                    .validate(self.time_sig)
+                    .into_iter()
+                    .map(move |issue| (index, issue))
+            })
+            .collect()
+    }
+}
+
+/// A way a track's timeline is malformed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TimelineIssue {
+    /// Nothing fills the span before the event at `before`.
+    Gap {
+        /// Index of the event that starts after the hole.
+        before: usize,
+        /// Where the hole starts, in whole notes.
+        from: Duration,
+        /// Where the hole ends, in whole notes.
+        to: Duration,
+    },
+    /// An event starts before the previous one has finished.
+    Overlap {
+        /// Index of the offending event.
+        index: usize,
+        /// Where it starts, in whole notes.
+        onset: Duration,
+        /// Where everything before it had already reached.
+        previous_end: Duration,
+    },
+    /// An event has zero or negative length.
+    NonPositiveDuration {
+        /// Index of the offending event.
+        index: usize,
+        /// The length it claims.
+        dur: Duration,
+    },
+    /// The music does not fill a whole number of bars.
+    PartialFinalBar {
+        /// Total length of the track, in whole notes.
+        total: Duration,
+        /// Length of one bar, in whole notes.
+        bar: Duration,
+    },
+    /// The time signature cannot be interpreted.
+    InvalidTimeSignature {
+        /// The offending signature.
+        time_sig: TimeSignature,
+    },
+}
+
+impl fmt::Display for TimelineIssue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TimelineIssue::Gap { before, from, to } => write!(
+                f,
+                "gap of {} whole notes at {} before event {before}",
+                to - from,
+                from
+            ),
+            TimelineIssue::Overlap {
+                index,
+                onset,
+                previous_end,
+            } => write!(
+                f,
+                "event {index} starts at {onset} but the previous event runs to {previous_end}"
+            ),
+            TimelineIssue::NonPositiveDuration { index, dur } => {
+                write!(f, "event {index} has non-positive duration {dur}")
+            }
+            TimelineIssue::PartialFinalBar { total, bar } => write!(
+                f,
+                "track is {total} whole notes, not a whole number of {bar}-note bars"
+            ),
+            TimelineIssue::InvalidTimeSignature { time_sig } => {
+                write!(f, "invalid time signature {time_sig}")
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::duration::{EIGHTH, HALF, QUARTER, WHOLE};
+    use crate::pitch::Letter;
+
+    fn note_at(onset: Duration, dur: Duration) -> Event {
+        Note::new(Tpc::natural(Letter::C), 4, onset, dur).into()
+    }
+
+    fn track_of(events: impl IntoIterator<Item = Event>) -> Track {
+        Track::new("test", Tpc::C, Mode::Major, events)
+    }
+
+    #[test]
+    fn middle_c_is_sixty() {
+        let middle_c = Note::new(Tpc::C, 4, duration::ZERO, QUARTER);
+        assert_eq!(middle_c.midi(), 60);
+    }
+
+    #[test]
+    fn a_full_bar_validates_clean() {
+        let track = track_of([note_at(duration::ZERO, HALF), note_at(HALF, HALF)]);
+        assert_eq!(track.validate(TimeSignature::COMMON), []);
+        assert_eq!(track.length(), WHOLE);
+    }
+
+    #[test]
+    fn a_note_may_cross_a_barline_because_that_is_what_a_tie_is() {
+        // A half note starting on the last quarter of bar 1: notated as two
+        // tied quarters, stored as one note, and perfectly valid.
+        let track = track_of([
+            note_at(duration::ZERO, HALF + QUARTER),
+            note_at(HALF + QUARTER, HALF),
+            note_at(WHOLE + QUARTER, HALF + QUARTER),
+        ]);
+        assert_eq!(track.validate(TimeSignature::COMMON), []);
+        assert_eq!(track.length(), WHOLE * 2);
+    }
+
+    #[test]
+    fn gaps_overlaps_and_short_bars_are_reported() {
+        let gapped = track_of([note_at(duration::ZERO, QUARTER), note_at(HALF, HALF)]);
+        assert_eq!(
+            gapped.validate(TimeSignature::COMMON),
+            [TimelineIssue::Gap {
+                before: 1,
+                from: QUARTER,
+                to: HALF,
+            }]
+        );
+
+        let overlapped = track_of([
+            note_at(duration::ZERO, HALF),
+            note_at(QUARTER, HALF + EIGHTH),
+        ]);
+        assert_eq!(
+            overlapped.validate(TimeSignature::COMMON),
+            [
+                TimelineIssue::Overlap {
+                    index: 1,
+                    onset: QUARTER,
+                    previous_end: HALF,
+                },
+                TimelineIssue::PartialFinalBar {
+                    total: HALF + QUARTER + EIGHTH,
+                    bar: WHOLE,
+                },
+            ]
+        );
+
+        let short = track_of([note_at(duration::ZERO, HALF)]);
+        assert_eq!(
+            short.validate(TimeSignature::COMMON),
+            [TimelineIssue::PartialFinalBar {
+                total: HALF,
+                bar: WHOLE,
+            }]
+        );
+    }
+
+    #[test]
+    fn an_empty_track_is_valid() {
+        assert_eq!(track_of([]).validate(TimeSignature::COMMON), []);
+    }
+
+    #[test]
+    fn events_are_sorted_on_construction() {
+        let track = track_of([note_at(HALF, HALF), note_at(duration::ZERO, HALF)]);
+        assert_eq!(track.events[0].onset(), duration::ZERO);
+        assert_eq!(track.validate(TimeSignature::COMMON), []);
+    }
+}

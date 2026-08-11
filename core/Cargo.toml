@@ -1,0 +1,19 @@
+[package]
+name = "dream-melody-core"
+description = "Model, tonal-pitch-class math, and serializers for Dream Melody."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+num-rational.workspace = true
+num-integer.workspace = true
+
+[lints.rust]
+missing_docs = "warn"
+
+[lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
