@@ -26,11 +26,14 @@
 
 use core::fmt;
 
+use serde::{Deserialize, Serialize};
+
 use crate::duration::{self, Duration};
+use crate::interval::Interval;
 use crate::pitch::Tpc;
 
 /// A time signature, as written: `4/4` is `beats = 4, beat_value = 4`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TimeSignature {
     /// Beats per bar — the upper numeral.
     pub beats: u32,
@@ -63,7 +66,7 @@ impl fmt::Display for TimeSignature {
 ///
 /// This selects which scale degree the tonic sits on, which is what a numbered
 /// notation (jianpu/简谱) reader needs; it does not change how pitch is stored.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub enum Mode {
     /// Ionian.
     #[default]
@@ -87,15 +90,17 @@ pub enum Mode {
 /// `octave` is scientific and **letter-based, not pitch-based**: B-sharp 4 is
 /// octave 4 and sounds as MIDI 72, because the letter B belongs to octave 4
 /// regardless of the sharp pushing it above C5.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Note {
     /// Line-of-fifths position, C = 0.
     pub tpc: Tpc,
     /// Scientific octave, where C4 is middle C. Follows the letter.
     pub octave: i32,
     /// Whole notes from the start of the track.
+    #[serde(with = "crate::duration::as_string")]
     pub onset: Duration,
     /// Length in whole notes, with any tied values already summed.
+    #[serde(with = "crate::duration::as_string")]
     pub dur: Duration,
 }
 
@@ -122,14 +127,40 @@ impl Note {
     pub fn end(&self) -> Duration {
         self.onset + self.dur
     }
+
+    /// Absolute position on the staff, counting letters: C0 is 0, D0 is 1.
+    ///
+    /// Accidentals do not move a notehead, so this ignores them. It is what a
+    /// renderer needs to place the note, and what transposition moves.
+    pub fn diatonic_position(&self) -> i32 {
+        self.octave * 7 + self.tpc.letter().index()
+    }
+
+    /// Moves the note by an interval, keeping its timing.
+    ///
+    /// The octave is derived rather than guessed: the interval says how far to
+    /// move on the staff, the shift says what the new spelling is, and those
+    /// two agree by construction, so the octave falls out exactly.
+    pub fn transpose(&self, by: Interval) -> Note {
+        let tpc = self.tpc.transpose(by);
+        let position = self.diatonic_position() + by.steps();
+        Note {
+            tpc,
+            octave: (position - tpc.letter().index()).div_euclid(7),
+            onset: self.onset,
+            dur: self.dur,
+        }
+    }
 }
 
 /// A silence.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Rest {
     /// Whole notes from the start of the track.
+    #[serde(with = "crate::duration::as_string")]
     pub onset: Duration,
     /// Length in whole notes.
+    #[serde(with = "crate::duration::as_string")]
     pub dur: Duration,
 }
 
@@ -146,7 +177,8 @@ impl Rest {
 }
 
 /// One entry on a track's timeline.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(tag = "kind")]
 pub enum Event {
     /// A sounding note.
     Note(Note),
@@ -183,6 +215,15 @@ impl Event {
             Event::Rest(_) => None,
         }
     }
+
+    /// Moves the event by an interval. Rests are unaffected — silence has no
+    /// pitch to move.
+    pub fn transpose(&self, by: Interval) -> Event {
+        match self {
+            Event::Note(note) => Event::Note(note.transpose(by)),
+            Event::Rest(rest) => Event::Rest(*rest),
+        }
+    }
 }
 
 impl From<Note> for Event {
@@ -201,7 +242,7 @@ impl From<Rest> for Event {
 ///
 /// One note sounds at a time. `tonic_tpc` is per-track on purpose: a B-flat
 /// clarinet part and a capo-1 guitar part are the same mechanism.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Track {
     /// Display name, such as an instrument.
     pub name: String,
@@ -238,6 +279,28 @@ impl Track {
             .map(Event::end)
             .max()
             .unwrap_or(duration::ZERO)
+    }
+
+    /// Moves the whole track by an interval, tonic included.
+    ///
+    /// The tonic moves with the notes, so scale degrees come out unchanged —
+    /// which is the point. Transposition is a relabelling, not a rewrite.
+    pub fn transpose(&self, by: Interval) -> Track {
+        Track {
+            name: self.name.clone(),
+            tonic_tpc: self.tonic_tpc.transpose(by),
+            mode: self.mode,
+            events: self
+                .events
+                .iter()
+                .map(|event| event.transpose(by))
+                .collect(),
+        }
+    }
+
+    /// Moves the track into a new key by the shortest route.
+    pub fn transposed_to(&self, tonic: Tpc) -> Track {
+        self.transpose(Interval::between_tonics(self.tonic_tpc, tonic))
     }
 
     /// Reports every way this track's timeline is malformed.
@@ -288,7 +351,7 @@ impl Track {
 }
 
 /// A score.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Document {
     /// Title, as displayed.
     pub title: String,
@@ -313,6 +376,20 @@ impl Document {
             tracks: tracks.into_iter().collect(),
             time_sig,
             bpm,
+        }
+    }
+
+    /// Moves every track by an interval.
+    pub fn transpose(&self, by: Interval) -> Document {
+        Document {
+            title: self.title.clone(),
+            tracks: self
+                .tracks
+                .iter()
+                .map(|track| track.transpose(by))
+                .collect(),
+            time_sig: self.time_sig,
+            bpm: self.bpm,
         }
     }
 

@@ -23,6 +23,35 @@
 
 use num_rational::Ratio;
 
+/// Serde support for writing a duration as `"1/8"` instead of a pair of
+/// integers.
+///
+/// Applied with `#[serde(with = "crate::duration::as_string")]`. A saved file is
+/// meant to be legible when opened by hand, and `"onset": "3/8"` reads as music
+/// where `"onset": [3, 8]` reads as an array of two numbers.
+///
+/// Parsing reduces (`"2/4"` loads as `1/2`), normalises the sign, and rejects a
+/// zero denominator as an error rather than a panic — so a hand-edited file
+/// cannot produce a duration the rest of the model would misbehave on.
+pub mod as_string {
+    use core::str::FromStr;
+
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    use super::Duration;
+
+    /// Writes a duration as a fraction string.
+    pub fn serialize<S: Serializer>(value: &Duration, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(value)
+    }
+
+    /// Reads a fraction string such as `"1/8"`, or a bare integer such as `"2"`.
+    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Duration, D::Error> {
+        let text = String::deserialize(deserializer)?;
+        Duration::from_str(&text).map_err(serde::de::Error::custom)
+    }
+}
+
 /// A musical duration in whole notes: a quarter note is `1/4`.
 ///
 /// Also used for onsets, which are measured in whole notes from the start of

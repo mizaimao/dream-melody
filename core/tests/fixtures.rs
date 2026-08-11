@@ -20,6 +20,9 @@
 //! internal consistency so that later stages can trust it; Fixtures B and C are
 //! transpositions and belong to stage 2.
 
+// Tests may panic on purpose; that is how they report failure.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 mod support;
 
 use dream_melody_core::Duration;

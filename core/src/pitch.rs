@@ -28,6 +28,10 @@
 
 use core::fmt;
 
+use serde::{Deserialize, Serialize};
+
+use crate::interval::Interval;
+
 /// Semitones above C for each letter, indexed by [`Letter::index`].
 const LETTER_SEMITONES: [i32; 7] = [0, 2, 4, 5, 7, 9, 11];
 
@@ -35,7 +39,7 @@ const LETTER_SEMITONES: [i32; 7] = [0, 2, 4, 5, 7, 9, 11];
 ///
 /// This is the *spelling* of a pitch, independent of any accidental: the letter
 /// determines which staff line or space the notehead sits on.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum Letter {
     /// C.
     C,
@@ -113,7 +117,8 @@ impl fmt::Display for Letter {
 /// Distinct values may sound alike. `Tpc(8)` is G-sharp and `Tpc(-4)` is
 /// A-flat; they share a MIDI number but are not equal, and that distinction is
 /// the reason the rest of the model works.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct Tpc(pub i32);
 
 impl Tpc {
@@ -144,6 +149,14 @@ impl Tpc {
     /// sharp, and beyond for double accidentals in either direction.
     pub const fn accidental(self) -> i32 {
         (self.0 + 1).div_euclid(7)
+    }
+
+    /// Shifts along the line of fifths. This is the whole of transposition.
+    ///
+    /// Spelling follows for free: A-flat moved by a major third down is F-flat,
+    /// not E, because the shift lands where it lands.
+    pub const fn transpose(self, by: Interval) -> Tpc {
+        Tpc(self.0 + by.fifths())
     }
 
     /// Semitones above C, folded into `0..=11`.

@@ -27,9 +27,12 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
 pub mod duration;
+pub mod interval;
+pub mod json;
 pub mod model;
 pub mod pitch;
 
 pub use duration::Duration;
+pub use interval::Interval;
 pub use model::{Document, Event, Mode, Note, Rest, TimeSignature, Track};
 pub use pitch::{Letter, Tpc};

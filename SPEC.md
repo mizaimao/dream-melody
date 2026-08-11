@@ -247,6 +247,10 @@ Strictly sequential. Do not start a stage before the previous one's tests pass.
 2. `core`: transposition. Fixtures B and C pass.
 3. `core`: jianpu serializer. Invariant 1 passes.
 4. `core`: ABC and MIDI export. Invariant 4 passes.
+   JSON persistence belongs here too, and landed early alongside stage 2 — it
+   shares nothing with the serializers, and a UI that can edit a document
+   before anything can save one is a trap. The file carries a `format` number
+   so the shape can change later.
 5. `core/wasm`: bindings, smoke-tested from JS.
 6. `web`: VexFlow render of a hardcoded Fixture A. Read-only.
 7. `web`: Web Audio playback of the rendered document.
