@@ -26,11 +26,15 @@
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
+pub mod abc;
 pub mod duration;
 pub mod interval;
 pub mod jianpu;
 pub mod json;
+pub mod midi;
 pub mod model;
+pub mod musicxml;
+pub mod notevalue;
 pub mod pitch;
 
 pub use duration::Duration;

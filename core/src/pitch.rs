@@ -159,6 +159,35 @@ impl Tpc {
         Tpc(self.0 + by.fifths())
     }
 
+    /// How a key signature spells a given letter.
+    ///
+    /// `key_fifths` is the signed count a key signature is usually quoted by:
+    /// `+1` is one sharp, `-4` is four flats. In four flats, E is spelled
+    /// E-flat and F is spelled F.
+    pub const fn in_key(letter: Letter, key_fifths: i32) -> Tpc {
+        // The seven spellings a key uses are the run of fifths from one below
+        // the tonic to five above it. Shift this letter's natural into that run.
+        let natural = Tpc::natural(letter).0;
+        Tpc(natural + 7 * (key_fifths + 5 - natural).div_euclid(7))
+    }
+
+    /// The spelling of a sounding pitch class that best fits a key.
+    ///
+    /// Exactly one spelling of any pitch class lies in any run of twelve
+    /// fifths, so this picks the one nearest the key's centre: in four flats,
+    /// pitch class 8 is A-flat, and in four sharps it is G-sharp.
+    pub const fn nearest_in_key(pitch_class: i32, key_fifths: i32) -> Tpc {
+        let mut fifths = key_fifths - 5;
+        while fifths <= key_fifths + 6 {
+            if Tpc(fifths).pitch_class() == pitch_class.rem_euclid(12) {
+                return Tpc(fifths);
+            }
+            fifths += 1;
+        }
+        // Unreachable: twelve consecutive fifths cover every pitch class.
+        Tpc(key_fifths)
+    }
+
     /// Semitones above C, folded into `0..=11`.
     ///
     /// Enharmonic equivalents collapse here: G-sharp and A-flat both give 8.
@@ -310,6 +339,51 @@ mod tests {
     fn nonsense_spellings_are_refused() {
         for text in ["", "H", "Cb#", "C#b", "Cq", "4", " C", "Cbb "] {
             assert!(Tpc::from_str(text).is_err(), "{text:?} should not parse");
+        }
+    }
+
+    #[test]
+    fn a_key_signature_spells_its_seven_letters() {
+        // Four flats: B, E, A and D are flattened, C, F and G are not.
+        let four_flats: Vec<String> = Letter::ALL
+            .iter()
+            .map(|&letter| Tpc::in_key(letter, -4).to_string())
+            .collect();
+        assert_eq!(four_flats, ["C", "Db", "Eb", "F", "G", "Ab", "Bb"]);
+
+        let three_sharps: Vec<String> = Letter::ALL
+            .iter()
+            .map(|&letter| Tpc::in_key(letter, 3).to_string())
+            .collect();
+        assert_eq!(three_sharps, ["C#", "D", "E", "F#", "G#", "A", "B"]);
+
+        // Seven flats and seven sharps stay single, as they must.
+        for key_fifths in -7..=7 {
+            for letter in Letter::ALL {
+                assert_eq!(Tpc::in_key(letter, key_fifths).accidental_depth(), 0);
+            }
+        }
+        // Eight flats is F-flat major, and it needs one double flat.
+        let eight_flats: Vec<String> = Letter::ALL
+            .iter()
+            .map(|&letter| Tpc::in_key(letter, -8).to_string())
+            .collect();
+        assert!(eight_flats.contains(&"Bbb".to_string()), "{eight_flats:?}");
+    }
+
+    #[test]
+    fn a_pitch_class_is_spelled_to_suit_the_key() {
+        // The same sound, spelled to match the company it keeps.
+        assert_eq!(Tpc::nearest_in_key(8, -4).to_string(), "Ab");
+        assert_eq!(Tpc::nearest_in_key(8, 4).to_string(), "G#");
+        assert_eq!(Tpc::nearest_in_key(0, 0).to_string(), "C");
+        // Every pitch class resolves, in every key, to something that sounds
+        // like what was asked for.
+        for key_fifths in -10..=10 {
+            for pitch_class in 0..12 {
+                let tpc = Tpc::nearest_in_key(pitch_class, key_fifths);
+                assert_eq!(tpc.pitch_class(), pitch_class);
+            }
         }
     }
 

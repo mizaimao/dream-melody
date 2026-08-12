@@ -246,7 +246,20 @@ Strictly sequential. Do not start a stage before the previous one's tests pass.
 1. `core`: `Note`, `Rational` durations, TPC conversions. Fixture D passes.
 2. `core`: transposition. Fixtures B and C pass.
 3. `core`: jianpu serializer. Invariant 1 passes.
-4. `core`: ABC and MIDI export. Invariant 4 passes.
+4. `core`: MusicXML, ABC and MIDI. Invariant 4 passes.
+
+   **MusicXML both ways.** Section 2 names it as interchange but the build
+   order originally omitted it, which would have left the project unable to
+   talk to MuseScore, Sibelius, Finale or Dorico. It is also the only format
+   here that carries spelling, so it is the only one this model survives
+   intact. Import as well as export, with round-trip tests.
+
+   ABC is export only — reading it means a baroque grammar for little gain,
+   and MusicXML already covers coming back in. MIDI goes both ways but cannot
+   carry spelling at all: A-flat and G-sharp are one byte. Reading spells
+   notes from the key signature, which recovers diatonic music exactly and
+   guesses otherwise. Invariant 4 is therefore about *time*, not pitch.
+
    JSON persistence belongs here too, and landed early alongside stage 2 — it
    shares nothing with the serializers, and a UI that can edit a document
    before anything can save one is a trap. The file carries a `format` number

@@ -12,6 +12,7 @@ num-rational.workspace = true
 num-integer.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+roxmltree.workspace = true
 
 [lints.rust]
 missing_docs = "warn"

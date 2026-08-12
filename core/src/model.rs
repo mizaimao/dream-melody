@@ -97,6 +97,23 @@ impl Mode {
         Mode::Locrian,
     ];
 
+    /// Where this mode's tonic sits relative to the key signature, in fifths.
+    ///
+    /// A minor and C major share a key signature; A is three fifths above C,
+    /// so minor's offset is 3. Subtracting this from a tonic gives the key
+    /// signature, which is what every other format writes.
+    pub const fn fifths_offset(self) -> i32 {
+        match self {
+            Mode::Lydian => -1,
+            Mode::Major => 0,
+            Mode::Mixolydian => 1,
+            Mode::Dorian => 2,
+            Mode::Minor => 3,
+            Mode::Phrygian => 4,
+            Mode::Locrian => 5,
+        }
+    }
+
     /// The name used in text formats and in the UI.
     pub const fn name(self) -> &'static str {
         match self {
@@ -332,6 +349,12 @@ impl Track {
     pub fn with_register(mut self, register: i32) -> Track {
         self.register = register;
         self
+    }
+
+    /// The key signature, as every other format quotes one: `+1` is one sharp,
+    /// `-4` is four flats.
+    pub fn key_fifths(&self) -> i32 {
+        self.tonic_tpc.0 - self.mode.fifths_offset()
     }
 
     /// The tonic's position on the staff, which is where the register starts.
