@@ -33,13 +33,17 @@
     <main>
       <p id="status">loading…</p>
       <p id="key"></p>
+      <p class="transport">
+        <button id="play" type="button" disabled data-playing="false">Play</button>
+        <span class="hint">one oscillator, for checking pitches</span>
+      </p>
       <div id="staff" aria-label="Standard staff notation"></div>
       <ul id="problems" hidden></ul>
     </main>
 
     <footer>
       <p>
-        Stage 6: the staff, read-only. Playback, numbered notation and note
+        Stage 7: the staff, and you can hear it. Numbered notation and note
         entry come next.
       </p>
     </footer>

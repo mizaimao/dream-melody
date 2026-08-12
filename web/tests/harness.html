@@ -1,0 +1,103 @@
+<!doctype html>
+<!--
+  Dream Melody — a notation editor that stores scale degrees, not pitches.
+  Copyright (C) 2026 mizaimao
+
+  This program is free software: you can redistribute it and/or modify it
+  under the terms of the GNU Affero General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or (at your
+  option) any later version. See <https://www.gnu.org/licenses/>.
+
+  A test harness, not a page anyone visits.
+
+  It drives the real modules in a real browser and writes what happened into
+  #results, where the Node test suite reads it. This exists so the production
+  page needs no test hooks in it: the things that can only be checked in a
+  browser — that VexFlow hands back an SVG element to highlight, that Web Audio
+  accepts the schedule — are checked here instead.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Dream Melody — harness</title>
+    <script src="../vendor/vexflow-bravura.js"></script>
+  </head>
+  <body>
+    <div id="staff"></div>
+    <pre id="results">running</pre>
+
+    <script type="module">
+      import init, { Score } from "../wasm/dream_melody_wasm.js";
+      import { drawStaff } from "../staff.js";
+      import { createPlayer } from "../playback.js";
+      import { createHighlighter } from "../highlight.js";
+
+      const results = document.querySelector("#results");
+      const wait = (ms) => new Promise((done) => setTimeout(done, ms));
+
+      async function run() {
+        await init({ module_or_path: "../wasm/dream_melody_wasm_bg.wasm" });
+        const score = Score.fromJson(
+          await (await fetch("../fixture-a.json")).text(),
+        );
+        const view = JSON.parse(score.renderJson());
+        score.free();
+
+        const drawn = drawStaff(document.querySelector("#staff"), view);
+        const highlight = createHighlighter(drawn.notes);
+
+        // Every note that was drawn should be reachable for highlighting. If
+        // VexFlow stops handing back SVG elements, this is what notices.
+        const reachable = highlight.reachable;
+
+        // Play a little of it and watch what lights up. The audio is silent in
+        // a headless browser, but the scheduling and the clock are real.
+        const seen = [];
+        const player = createPlayer(view, {
+          onSounding: (entry) => {
+            if (entry) seen.push(entry.midi);
+          },
+        });
+        let error = null;
+        try {
+          await player.play();
+          await wait(600);
+        } catch (thrown) {
+          error = String(thrown && thrown.message ? thrown.message : thrown);
+        }
+        player.stop();
+        await wait(20);
+
+        // Whether the follow loop ticked is not asserted: a headless browser
+        // runs on virtual time while the audio clock runs on real time, so it
+        // may see nothing however correct it is. What is asserted is the part
+        // that does not depend on a clock — that driving the highlighter lights
+        // the right noteheads and clears them again.
+        highlight(player.schedule[1]);
+        const litForOneNote =
+          document.querySelectorAll("#staff .sounding").length;
+        highlight(null);
+        const litAfterClear =
+          document.querySelectorAll("#staff .sounding").length;
+
+        results.textContent = JSON.stringify({
+          drawn: drawn.notes.length,
+          reachable,
+          scheduled: player.schedule.length,
+          totalSeconds: Number(player.total.toFixed(4)),
+          seen,
+          litForOneNote,
+          litAfterClear,
+          problems: drawn.problems,
+          error,
+        });
+      }
+
+      run().catch((thrown) => {
+        results.textContent = JSON.stringify({
+          error: String(thrown && thrown.message ? thrown.message : thrown),
+        });
+      });
+    </script>
+  </body>
+</html>

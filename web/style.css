@@ -14,6 +14,7 @@
   --rule: #d8d2c4;
   --quiet: #6b6558;
   --alarm: #8c2f1e;
+  --accent: #9a5b1e;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -23,6 +24,7 @@
     --rule: #34322a;
     --quiet: #9a9384;
     --alarm: #e0866f;
+    --accent: #e0a558;
   }
 }
 
@@ -91,6 +93,50 @@ h1 {
 #staff svg path[stroke],
 #staff svg line {
   stroke: var(--ink);
+}
+
+.transport {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin: 0.9rem 0 0;
+}
+
+button {
+  padding: 0.35rem 1.1rem;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.hint {
+  color: var(--quiet);
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+/* The note now sounding. */
+#staff svg .sounding text,
+#staff svg .sounding path,
+#staff svg .sounding rect {
+  fill: var(--accent);
+}
+#staff svg .sounding path[stroke],
+#staff svg .sounding line {
+  stroke: var(--accent);
 }
 
 #problems {
