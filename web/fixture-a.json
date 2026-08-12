@@ -1,0 +1,122 @@
+{
+  "format": 1,
+  "document": {
+    "title": "Fixture A",
+    "tracks": [
+      {
+        "name": "Melody",
+        "tonic_tpc": -4,
+        "mode": "Major",
+        "register": 3,
+        "events": [
+          {
+            "kind": "Rest",
+            "onset": "0",
+            "dur": "1/8"
+          },
+          {
+            "kind": "Note",
+            "tpc": -3,
+            "octave": 4,
+            "onset": "1/8",
+            "dur": "1/8"
+          },
+          {
+            "kind": "Note",
+            "tpc": -4,
+            "octave": 4,
+            "onset": "1/4",
+            "dur": "1/8"
+          },
+          {
+            "kind": "Note",
+            "tpc": -3,
+            "octave": 4,
+            "onset": "3/8",
+            "dur": "1/8"
+          },
+          {
+            "kind": "Note",
+            "tpc": -4,
+            "octave": 4,
+            "onset": "1/2",
+            "dur": "1/8"
+          },
+          {
+            "kind": "Note",
+            "tpc": -3,
+            "octave": 4,
+            "onset": "5/8",
+            "dur": "1/8"
+          },
+          {
+            "kind": "Note",
+            "tpc": -4,
+            "octave": 4,
+            "onset": "3/4",
+            "dur": "1/8"
+          },
+          {
+            "kind": "Note",
+            "tpc": -2,
+            "octave": 4,
+            "onset": "7/8",
+            "dur": "1/8"
+          },
+          {
+            "kind": "Note",
+            "tpc": -5,
+            "octave": 5,
+            "onset": "1",
+            "dur": "1/8"
+          },
+          {
+            "kind": "Rest",
+            "onset": "9/8",
+            "dur": "1/8"
+          },
+          {
+            "kind": "Note",
+            "tpc": -2,
+            "octave": 4,
+            "onset": "5/4",
+            "dur": "1/8"
+          },
+          {
+            "kind": "Note",
+            "tpc": -3,
+            "octave": 4,
+            "onset": "11/8",
+            "dur": "1/8"
+          },
+          {
+            "kind": "Note",
+            "tpc": -5,
+            "octave": 5,
+            "onset": "3/2",
+            "dur": "1/4"
+          },
+          {
+            "kind": "Note",
+            "tpc": -2,
+            "octave": 4,
+            "onset": "7/4",
+            "dur": "1/8"
+          },
+          {
+            "kind": "Note",
+            "tpc": -3,
+            "octave": 4,
+            "onset": "15/8",
+            "dur": "1/8"
+          }
+        ]
+      }
+    ],
+    "time_sig": {
+      "beats": 4,
+      "beat_value": 4
+    },
+    "bpm": 67
+  }
+}

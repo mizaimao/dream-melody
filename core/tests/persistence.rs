@@ -61,6 +61,21 @@ fn a_double_flat_survives_a_save_and_load() {
     assert!(spellings.contains(&"Bbb".to_string()), "{spellings:?}");
 }
 
+/// The browser loads Fixture A from a committed file. If that file and the
+/// fixture in this repository ever disagree, the demo is showing something
+/// nobody tested.
+#[test]
+fn the_file_the_browser_loads_is_the_fixture() {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../web/fixture-a.json");
+    let text =
+        std::fs::read_to_string(path).unwrap_or_else(|error| panic!("cannot read {path}: {error}"));
+    assert_eq!(
+        json::from_str(&text).unwrap(),
+        fixture_a(),
+        "web/fixture-a.json has drifted from the fixture; regenerate it"
+    );
+}
+
 /// The file is JSON, and it is meant to be legible when opened by hand.
 #[test]
 fn the_saved_file_reads_the_way_a_person_would_expect() {

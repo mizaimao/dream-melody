@@ -36,6 +36,7 @@ pub mod model;
 pub mod musicxml;
 pub mod notevalue;
 pub mod pitch;
+pub mod render;
 
 pub use duration::Duration;
 pub use interval::Interval;

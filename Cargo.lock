@@ -63,6 +63,7 @@ name = "dream-melody-wasm"
 version = "0.1.0"
 dependencies = [
  "dream-melody-core",
+ "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-test",
 ]

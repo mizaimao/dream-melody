@@ -54,4 +54,6 @@ wasm-bindgen --target web --out-dir "$root/web/wasm" "$binary"
 echo "generating CommonJS for Node -> core/wasm/pkg-node"
 wasm-bindgen --target nodejs --out-dir "$here/pkg-node" "$binary"
 
-echo "done. run the JS tests with: node --test 'core/wasm/tests/*.test.mjs'"
+echo "done. run the JS tests with:"
+echo "  node --test 'core/wasm/tests/*.test.mjs'   # the bindings"
+echo "  node --test 'web/tests/*.test.mjs'         # what reaches the page"

@@ -1,0 +1,109 @@
+/*
+  Dream Melody — a notation editor that stores scale degrees, not pitches.
+  Copyright (C) 2026 mizaimao
+
+  This program is free software: you can redistribute it and/or modify it
+  under the terms of the GNU Affero General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or (at your
+  option) any later version. See <https://www.gnu.org/licenses/>.
+*/
+
+:root {
+  --ink: #14140f;
+  --paper: #faf8f3;
+  --rule: #d8d2c4;
+  --quiet: #6b6558;
+  --alarm: #8c2f1e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #ece7dc;
+    --paper: #16150f;
+    --rule: #34322a;
+    --quiet: #9a9384;
+    --alarm: #e0866f;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 2rem 1.5rem 3rem;
+  background: var(--paper);
+  color: var(--ink);
+  font: 16px/1.5 "Iowan Old Style", Palatino, Georgia, serif;
+}
+
+header,
+main,
+footer {
+  max-width: 60rem;
+  margin: 0 auto;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.tagline {
+  margin: 0.25rem 0 1.75rem;
+  color: var(--quiet);
+  font-style: italic;
+}
+
+#status,
+#key {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+  color: var(--quiet);
+  font-variant-numeric: tabular-nums;
+}
+
+#staff {
+  margin: 1rem 0 0;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  /* A score is wider than a phone. Let it scroll rather than reflow. */
+  overflow-x: auto;
+}
+
+/*
+  VexFlow draws in black. Follow the page instead, or the whole score vanishes
+  on a dark background.
+
+  Noteheads, clefs, accidentals and rests are SMuFL glyphs drawn as <text>, not
+  as paths — miss that selector and every glyph stays black while the staff
+  lines around them turn light.
+*/
+#staff svg text,
+#staff svg path,
+#staff svg rect {
+  fill: var(--ink);
+}
+#staff svg path[stroke],
+#staff svg line {
+  stroke: var(--ink);
+}
+
+#problems {
+  margin: 1.25rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--alarm);
+  font-size: 0.9rem;
+}
+
+footer {
+  margin-top: 2.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--rule);
+  color: var(--quiet);
+  font-size: 0.85rem;
+}

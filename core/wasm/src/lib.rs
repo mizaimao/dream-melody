@@ -29,7 +29,7 @@
 use dream_melody_core::interval::Interval;
 use dream_melody_core::model::Document;
 use dream_melody_core::pitch::Tpc;
-use dream_melody_core::{abc, jianpu, json, midi, musicxml};
+use dream_melody_core::{abc, jianpu, json, midi, musicxml, render};
 use wasm_bindgen::prelude::*;
 
 /// Turns any error into a message, since that is all JavaScript will see.
@@ -136,6 +136,18 @@ impl Score {
     #[wasm_bindgen(js_name = toMidi)]
     pub fn to_midi(&self) -> Result<Vec<u8>, JsError> {
         midi::to_bytes(&self.inner).map_err(|error| fail(why(error)))
+    }
+
+    /// Everything a renderer needs, as JSON: bars, ties, note-value names,
+    /// scale degrees and MIDI numbers.
+    ///
+    /// The browser never works these out for itself. Barlines, ties and degree
+    /// arithmetic are decided once, in the model, so the staff and the numbers
+    /// cannot disagree about them.
+    #[wasm_bindgen(js_name = renderJson)]
+    pub fn render_json(&self) -> Result<String, JsError> {
+        let view = render::of(&self.inner).map_err(|error| fail(why(error)))?;
+        serde_json::to_string(&view).map_err(|error| fail(why(error)))
     }
 
     /// Moves the score along the line of fifths, keeping every scale degree.

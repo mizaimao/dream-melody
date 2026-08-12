@@ -1,0 +1,49 @@
+<!doctype html>
+<!--
+  Dream Melody — a notation editor that stores scale degrees, not pitches.
+  Copyright (C) 2026 mizaimao
+
+  This program is free software: you can redistribute it and/or modify it
+  under the terms of the GNU Affero General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or (at your
+  option) any later version. See <https://www.gnu.org/licenses/>.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dream Melody</title>
+    <link rel="stylesheet" href="./style.css" />
+    <!--
+      VexFlow is a UMD bundle, so it is loaded as a classic script and puts
+      itself on globalThis. Classic scripts run before module scripts, so it is
+      there by the time anything imports the adapter. Everything of ours is an
+      ES module, and there is no bundler.
+    -->
+    <script src="./vendor/vexflow-bravura.js"></script>
+  </head>
+  <body>
+    <header>
+      <h1>Dream Melody</h1>
+      <p class="tagline">
+        A notation editor that stores scale degrees, not pitches.
+      </p>
+    </header>
+
+    <main>
+      <p id="status">loading…</p>
+      <p id="key"></p>
+      <div id="staff" aria-label="Standard staff notation"></div>
+      <ul id="problems" hidden></ul>
+    </main>
+
+    <footer>
+      <p>
+        Stage 6: the staff, read-only. Playback, numbered notation and note
+        entry come next.
+      </p>
+    </footer>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
