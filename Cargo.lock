@@ -59,6 +59,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "dream-melody-dev"
+version = "0.1.0"
+
+[[package]]
 name = "dream-melody-wasm"
 version = "0.1.0"
 dependencies = [
