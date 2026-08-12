@@ -1,0 +1,25 @@
+[package]
+name = "dream-melody-wasm"
+description = "Browser bindings for Dream Melody. The same core, running in the browser."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+dream-melody-core = { path = ".." }
+wasm-bindgen = "=0.2.127"
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+[lints.rust]
+missing_docs = "warn"
+
+[lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
