@@ -248,6 +248,86 @@ fn several_tracks_round_trip_together() {
     assert_eq!(jianpu::from_str(&text).unwrap(), document);
 }
 
+/// A hole in the timeline is silence, and silence is a rest. It must not
+/// vanish and slide everything after it earlier.
+#[test]
+fn a_gap_comes_back_as_the_rest_it_means() {
+    // Two quarters with a two-quarter hole between them, and nothing in the
+    // events list covering the hole.
+    let ragged = Document::new(
+        "Ragged",
+        TimeSignature::COMMON,
+        60,
+        [Track::new(
+            "Melody",
+            Tpc::C,
+            Mode::Major,
+            [
+                Note::new(Tpc::C, 4, ZERO, QUARTER).into(),
+                Note::new(Tpc::C, 4, QUARTER * 3, QUARTER).into(),
+            ],
+        )],
+    );
+    assert_eq!(ragged.validate().len(), 1, "the gap should be reported");
+
+    let text = jianpu::to_string(&ragged).unwrap();
+    assert!(text.contains("| 1 0 - 1 |"), "{text}");
+
+    let returned = jianpu::from_str(&text).unwrap();
+    // The timing is preserved exactly: the second note still starts on beat 4.
+    assert_eq!(returned.tracks[0].events[2].onset(), QUARTER * 3);
+    // And the hole is now an honest rest, so the document validates.
+    assert_eq!(returned.validate(), []);
+}
+
+/// The register is stored, not re-derived, so adding a low note later does not
+/// silently rewrite every octave mark in the piece.
+#[test]
+fn adding_a_lower_note_does_not_move_the_existing_digits() {
+    let mut document = fixture_a();
+    let before = jianpu::to_string(&document).unwrap();
+    assert!(before.contains("1 = Ab3"), "{before}");
+
+    // Append a note a tenth below anything already there.
+    let track = &mut document.tracks[0];
+    let onset = track.length();
+    track
+        .events
+        .push(Note::new(Tpc::new(Letter::A, -1), 2, onset, QUARTER * 4).into());
+
+    let after = jianpu::to_string(&document).unwrap();
+    assert!(after.contains("1 = Ab3"), "the register moved:\n{after}");
+    assert!(
+        after.contains(FIXTURE_A_BODY.trim_end_matches('|')),
+        "{after}"
+    );
+    // The new note sits below the line, which is what the marks are for.
+    assert!(after.contains("1v - - -"), "{after}");
+    assert_eq!(jianpu::from_str(&after).unwrap(), document);
+}
+
+/// An authored register overrides the one inferred from the notes.
+#[test]
+fn a_pinned_register_is_honoured() {
+    let document = Document::new(
+        "Pinned",
+        TimeSignature::COMMON,
+        60,
+        [Track::new(
+            "Melody",
+            Tpc::C,
+            Mode::Major,
+            [Note::new(Tpc::C, 4, ZERO, QUARTER * 4).into()],
+        )
+        .with_register(3)],
+    );
+    let text = jianpu::to_string(&document).unwrap();
+    assert!(text.contains("1 = C3"), "{text}");
+    // Middle C is now an octave above the register, so it takes a mark.
+    assert!(text.contains("| 1^ - - - |"), "{text}");
+    assert_eq!(jianpu::from_str(&text).unwrap(), document);
+}
+
 #[test]
 fn nonsense_is_refused_with_a_line_number() {
     let bad = "\

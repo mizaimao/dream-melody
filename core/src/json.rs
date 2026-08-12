@@ -28,7 +28,7 @@ use core::fmt;
 
 use serde::{Deserialize, Serialize};
 
-use crate::model::{Document, Track};
+use crate::model::Document;
 
 /// The format number written by this version.
 pub const FORMAT_VERSION: u32 = 1;
@@ -114,11 +114,11 @@ pub fn from_str(json: &str) -> Result<Document, LoadError> {
     }
 
     let mut document = file.document;
-    document.tracks = document
-        .tracks
-        .into_iter()
-        .map(|track| Track::new(track.name, track.tonic_tpc, track.mode, track.events))
-        .collect();
+    for track in &mut document.tracks {
+        // Sort, but keep the stored register rather than re-deriving it: the
+        // register is an authored decision, not something to recompute.
+        track.events.sort_by_key(|event| event.onset());
+    }
     Ok(document)
 }
 
@@ -126,7 +126,7 @@ pub fn from_str(json: &str) -> Result<Document, LoadError> {
 mod tests {
     use super::*;
     use crate::duration::{EIGHTH, HALF, QUARTER, ZERO};
-    use crate::model::{Mode, Note, Rest, TimeSignature};
+    use crate::model::{Mode, Note, Rest, TimeSignature, Track};
     use crate::pitch::{Letter, Tpc};
 
     fn sample() -> Document {
@@ -176,6 +176,7 @@ mod tests {
                     "name": "Melody",
                     "tonic_tpc": 0,
                     "mode": "Major",
+                    "register": 4,
                     "events": [
                         {"kind": "Note", "tpc": 0, "octave": 4,
                          "onset": "0", "dur": "2/16"}

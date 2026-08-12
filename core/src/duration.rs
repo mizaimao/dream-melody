@@ -104,9 +104,10 @@ pub fn triplet(base: Duration) -> Duration {
 
 /// The duration a time signature gives one bar: `4/4` is one whole note.
 ///
-/// Returns `None` for a zero denominator, which is not a time signature.
+/// Returns `None` if either numeral is zero. A bar of no length is not a bar,
+/// and anything that walks a timeline bar by bar would never advance past one.
 pub fn bar_length(beats: u32, beat_value: u32) -> Option<Duration> {
-    if beat_value == 0 {
+    if beats == 0 || beat_value == 0 {
         return None;
     }
     Some(Ratio::new(i64::from(beats), i64::from(beat_value)))
@@ -159,5 +160,6 @@ mod tests {
         assert_eq!(bar_length(3, 4), Some(Ratio::new(3, 4)));
         assert_eq!(bar_length(6, 8), Some(Ratio::new(3, 4)));
         assert_eq!(bar_length(4, 0), None);
+        assert_eq!(bar_length(0, 4), None);
     }
 }

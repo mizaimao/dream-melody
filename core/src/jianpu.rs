@@ -151,11 +151,6 @@ fn syntax<T>(line: usize, message: impl Into<String>) -> Result<T, JianpuError> 
     })
 }
 
-/// The tonic's position on the staff, which fixes the unmarked register.
-fn tonic_position(track: &Track, tonic_octave: i32) -> i32 {
-    tonic_octave * 7 + track.tonic_tpc.letter().index()
-}
-
 // --- durations -------------------------------------------------------------
 
 /// The largest number of dots and halvings worth spelling out. Beyond this the
@@ -238,78 +233,32 @@ pub fn to_string(document: &Document) -> Result<String, JianpuError> {
     let _ = writeln!(out, "tempo: {}", document.bpm);
 
     for track in &document.tracks {
-        let tonic_octave = tonic_octave_of(track);
-        let position = tonic_position(track, tonic_octave);
         let _ = writeln!(out, "\ntrack: {}", track.name);
-        let _ = writeln!(out, "1 = {}{}", track.tonic_tpc, tonic_octave);
+        let _ = writeln!(out, "1 = {}{}", track.tonic_tpc, track.register);
         let _ = writeln!(out, "mode: {}", track.mode);
-        let _ = writeln!(out, "{}", write_body(track, bar, beat, position));
+        let _ = writeln!(out, "{}", write_body(track, bar, beat));
     }
     Ok(out)
 }
 
-/// Picks the register an unmarked digit means: the octave of the lowest note,
-/// so most music needs no octave marks below the line.
-fn tonic_octave_of(track: &Track) -> i32 {
-    let lowest = track
-        .events
-        .iter()
-        .filter_map(|event| event.as_note())
-        .map(|note| note.diatonic_position())
-        .min();
-    match lowest {
-        // Put the tonic at or below the lowest note, in the tonic's own letter.
-        Some(position) => {
-            let tonic_index = track.tonic_tpc.letter().index();
-            (position - tonic_index).div_euclid(7)
-        }
-        None => 4,
-    }
-}
-
-/// One event, clipped to a single bar.
-struct Segment {
-    bar: i64,
-    dur: Duration,
-    degree: Option<Degree>,
-    tied_to_previous: bool,
-}
-
-fn write_body(track: &Track, bar: Duration, beat: Duration, position: i32) -> String {
-    let mut segments: Vec<Segment> = Vec::new();
-    for event in &track.events {
-        let degree = event
-            .as_note()
-            .map(|note| Degree::of(note, track.tonic_tpc, position));
-        let end = event.end();
-        let mut cursor = event.onset();
-        let mut first = true;
-        while cursor < end {
-            let index = (cursor / bar).floor().to_integer();
-            let bar_end = bar * (index + 1);
-            let stop = if end < bar_end { end } else { bar_end };
-            segments.push(Segment {
-                bar: index,
-                dur: stop - cursor,
-                degree,
-                tied_to_previous: !first,
-            });
-            cursor = stop;
-            first = false;
-        }
-    }
-
+fn write_body(track: &Track, bar: Duration, beat: Duration) -> String {
+    let position = track.register_position();
+    let segments = track.segments(bar);
     let bars = segments.last().map_or(0, |segment| segment.bar + 1);
+
     let mut out = String::from("|");
     for index in 0..bars {
         for segment in segments.iter().filter(|segment| segment.bar == index) {
-            let (marks, dashes) = encode_duration(segment.dur, beat);
+            let (marks, dashes) = encode_duration(segment.event.dur(), beat);
             out.push(' ');
-            if segment.tied_to_previous {
-                out.push('~');
-            }
-            match segment.degree {
-                Some(degree) => {
+            match segment.event.as_note() {
+                Some(note) => {
+                    // Only a note can be tied; two rests in a row are just two
+                    // rests, and `~0` would mean nothing.
+                    if segment.tied_to_previous {
+                        out.push('~');
+                    }
+                    let degree = Degree::of(note, track.tonic_tpc, position);
                     let accidental = if degree.alteration < 0 { "b" } else { "#" };
                     out.push_str(&accidental.repeat(degree.alteration.unsigned_abs() as usize));
                     let _ = write!(out, "{}", degree.number);
@@ -482,6 +431,7 @@ fn build_track(
         name: name.to_string(),
         tonic_tpc: tonic,
         mode,
+        register: tonic_octave,
         events,
     })
 }

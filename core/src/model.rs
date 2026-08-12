@@ -289,6 +289,18 @@ pub struct Track {
     pub tonic_tpc: Tpc,
     /// The mode the tonic is read in.
     pub mode: Mode,
+    /// The octave an unmarked scale degree sits in.
+    ///
+    /// Numbered notation writes a bare `5` with no octave mark, and something
+    /// has to say which E-flat that is. This does: with `tonic_tpc` of A-flat
+    /// and `register` 3, unmarked digits run A-flat 3 to G 4, so a bare `5` is
+    /// E-flat 4 and `1^` is A-flat 4.
+    ///
+    /// [`Track::new`] picks it from the lowest note so that most music needs no
+    /// marks below the line, and then it stays put. It is stored rather than
+    /// recomputed on demand precisely so that adding one low note later does
+    /// not silently flip every octave mark in the piece.
+    pub register: i32,
     /// Events in timeline order, sorted by onset.
     pub events: Vec<Event>,
 }
@@ -303,12 +315,56 @@ impl Track {
     ) -> Track {
         let mut events: Vec<Event> = events.into_iter().collect();
         events.sort_by_key(|event| event.onset());
+        let register = natural_register(tonic_tpc, &events);
         Track {
             name: name.into(),
             tonic_tpc,
             mode,
+            register,
             events,
         }
+    }
+
+    /// Pins the octave that an unmarked scale degree sits in.
+    ///
+    /// Use this when the register is an authored decision rather than one
+    /// inferred from the notes present.
+    pub fn with_register(mut self, register: i32) -> Track {
+        self.register = register;
+        self
+    }
+
+    /// The tonic's position on the staff, which is where the register starts.
+    pub fn register_position(&self) -> i32 {
+        self.register * 7 + self.tonic_tpc.letter().index()
+    }
+
+    /// Splits the track into bar-sized pieces, filling holes with rests.
+    ///
+    /// Both renderings need exactly this: a note crossing a barline has to be
+    /// drawn as two tied noteheads on a staff and as two `~`-joined symbols in
+    /// numbered notation, and they must agree about where the split falls. So
+    /// the split lives here, once, rather than in each renderer.
+    ///
+    /// A gap in the timeline is silence, and silence is a rest, so gaps come
+    /// back as rests rather than vanishing. Returns nothing if `bar` is not a
+    /// positive length.
+    pub fn segments(&self, bar: Duration) -> Vec<Segment> {
+        let mut segments = Vec::new();
+        if bar <= duration::ZERO {
+            return segments;
+        }
+
+        let mut cursor = duration::ZERO;
+        for event in &self.events {
+            if event.onset() > cursor {
+                let hole = Rest::new(cursor, event.onset() - cursor);
+                split_into_bars(&mut segments, Event::Rest(hole), bar);
+            }
+            split_into_bars(&mut segments, *event, bar);
+            cursor = cursor.max(event.end());
+        }
+        segments
     }
 
     /// Where the last event ends, in whole notes. Zero for an empty track.
@@ -325,10 +381,14 @@ impl Track {
     /// The tonic moves with the notes, so scale degrees come out unchanged —
     /// which is the point. Transposition is a relabelling, not a rewrite.
     pub fn transpose(&self, by: Interval) -> Track {
+        let tonic_tpc = self.tonic_tpc.transpose(by);
+        // The register moves with the music, exactly as a note does.
+        let position = self.register_position() + by.steps();
         Track {
             name: self.name.clone(),
-            tonic_tpc: self.tonic_tpc.transpose(by),
+            tonic_tpc,
             mode: self.mode,
+            register: (position - tonic_tpc.letter().index()).div_euclid(7),
             events: self
                 .events
                 .iter()
@@ -444,6 +504,66 @@ impl Document {
                     .map(move |issue| (index, issue))
             })
             .collect()
+    }
+}
+
+/// One event, clipped to a single bar.
+///
+/// Produced by [`Track::segments`]. Every renderer consumes these rather than
+/// raw events, so staff notation and numbered notation break notes across
+/// barlines in the same places.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Segment {
+    /// Which bar this piece falls in, counting from zero.
+    pub bar: i64,
+    /// The piece itself, carrying its own onset and clipped length.
+    pub event: Event,
+    /// This piece continues a note that began in an earlier bar. On a staff it
+    /// takes the far end of a tie; in numbered notation it takes a `~`.
+    pub tied_to_previous: bool,
+    /// This note continues past the barline into the next piece.
+    pub tied_to_next: bool,
+}
+
+/// Cuts one event at every barline it crosses.
+fn split_into_bars(out: &mut Vec<Segment>, event: Event, bar: Duration) {
+    let end = event.end();
+    let mut cursor = event.onset();
+    let mut first = true;
+    while cursor < end {
+        let index = (cursor / bar).floor().to_integer();
+        let bar_end = bar * (index + 1);
+        let stop = if end < bar_end { end } else { bar_end };
+        let piece = match event {
+            Event::Note(note) => Event::Note(Note {
+                onset: cursor,
+                dur: stop - cursor,
+                ..note
+            }),
+            Event::Rest(_) => Event::Rest(Rest::new(cursor, stop - cursor)),
+        };
+        out.push(Segment {
+            bar: index,
+            event: piece,
+            tied_to_previous: !first,
+            tied_to_next: stop < end,
+        });
+        cursor = stop;
+        first = false;
+    }
+}
+
+/// The register [`Track::new`] picks: low enough that no note needs a mark
+/// below the line.
+fn natural_register(tonic_tpc: Tpc, events: &[Event]) -> i32 {
+    let lowest = events
+        .iter()
+        .filter_map(Event::as_note)
+        .map(Note::diatonic_position)
+        .min();
+    match lowest {
+        Some(position) => (position - tonic_tpc.letter().index()).div_euclid(7),
+        None => 4,
     }
 }
 
