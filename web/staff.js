@@ -33,12 +33,15 @@ const DURATION_CODES = {
 /** VexFlow draws key signatures from seven flats to seven sharps. */
 const KEY_SIGNATURE_LIMIT = 7;
 
-/** How wide a bar is drawn, before the extra a first bar needs for its clef. */
-const BAR_WIDTH = 260;
-const FIRST_BAR_EXTRA = 90;
+/** The narrowest a bar may be drawn before the staff starts scrolling. */
+const MIN_BAR_WIDTH = 200;
+/** Room the first bar needs for its clef, key signature and time signature. */
+const FIRST_BAR_EXTRA = 100;
 const STAVE_LEFT = 10;
 const STAVE_TOP = 24;
 const STAVE_HEIGHT = 120;
+/** Breathing room so the last note of a bar does not sit on the barline. */
+const BAR_PADDING = 14;
 
 /** The accidental a spelling carries, as VexFlow spells it. */
 function accidentalCode(alter) {
@@ -100,8 +103,17 @@ export function drawStaff(element, score, options = {}) {
   element.replaceChildren();
 
   const bars = track?.bars ?? [];
-  const width =
-    STAVE_LEFT * 2 + FIRST_BAR_EXTRA + BAR_WIDTH * Math.max(bars.length, 1);
+  const count = Math.max(bars.length, 1);
+
+  // Fill the width available, and only scroll when the bars would be too
+  // cramped to read. A score drawn at a fixed width leaves half the page empty
+  // on a desktop and overflows on a phone.
+  const available = (options.width ?? element.clientWidth ?? 0) - STAVE_LEFT * 2;
+  const barWidth = Math.max(
+    MIN_BAR_WIDTH,
+    (available - FIRST_BAR_EXTRA) / count,
+  );
+  const width = STAVE_LEFT * 2 + FIRST_BAR_EXTRA + barWidth * count;
   const height = STAVE_TOP + STAVE_HEIGHT;
 
   const renderer = new VF.Renderer(element, VF.Renderer.Backends.SVG);
@@ -125,8 +137,8 @@ export function drawStaff(element, score, options = {}) {
 
   bars.forEach((bar, index) => {
     const first = index === 0;
-    const barWidth = BAR_WIDTH + (first ? FIRST_BAR_EXTRA : 0);
-    const stave = new VF.Stave(x, STAVE_TOP, barWidth);
+    const thisWidth = barWidth + (first ? FIRST_BAR_EXTRA : 0);
+    const stave = new VF.Stave(x, STAVE_TOP, thisWidth);
 
     if (first) {
       stave.addClef("treble");
@@ -164,13 +176,16 @@ export function drawStaff(element, score, options = {}) {
     if (keyName) VF.Accidental.applyAccidentals([voice], keyName);
 
     const beams = VF.Beam.generateBeams(staveNotes);
+    // Ask the stave where the notes may actually go rather than guessing at a
+    // margin: it already knows how much room its clef and signatures took.
+    const room = stave.getNoteEndX() - stave.getNoteStartX() - BAR_PADDING;
     new VF.Formatter()
       .joinVoices([voice])
-      .format([voice], barWidth - (first ? FIRST_BAR_EXTRA + 20 : 30));
+      .format([voice], Math.max(room, MIN_BAR_WIDTH / 2));
     voice.draw(context, stave);
     for (const beam of beams) beam.setContext(context).draw();
 
-    x += barWidth;
+    x += thisWidth;
   });
 
   // Ties are drawn last, across the staves they join.

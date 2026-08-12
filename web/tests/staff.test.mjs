@@ -20,33 +20,8 @@
 
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { createServer } from "node:http";
-import { execFile } from "node:child_process";
-import { readFile, access } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
-import { dirname, join, extname, normalize } from "node:path";
-import { promisify } from "node:util";
 
-const run = promisify(execFile);
-const web = dirname(dirname(fileURLToPath(import.meta.url)));
-
-const CHROMES = [
-  process.env.CHROME,
-  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-  "/Applications/Chromium.app/Contents/MacOS/Chromium",
-  "/usr/bin/google-chrome",
-  "/usr/bin/chromium",
-  "/usr/bin/chromium-browser",
-].filter(Boolean);
-
-const TYPES = {
-  ".html": "text/html",
-  ".js": "text/javascript",
-  ".mjs": "text/javascript",
-  ".css": "text/css",
-  ".json": "application/json",
-  ".wasm": "application/wasm",
-};
+import { findChrome, serveApp, renderedDom } from "./browser.mjs";
 
 /** The staff position each y coordinate lands on, in treble clef. */
 const STAFF_POSITIONS = {
@@ -77,62 +52,11 @@ const EXPECTED = [
   "D5", "REST", "B4", "E4", "D5", "B4", "E4",
 ];
 
-async function findChrome() {
-  for (const path of CHROMES) {
-    try {
-      await access(path);
-      return path;
-    } catch {
-      /* try the next one */
-    }
-  }
-  return null;
-}
-
-let server;
-let origin;
-
+let app;
 before(async () => {
-  server = createServer(async (request, response) => {
-    const asked = new URL(request.url, "http://localhost").pathname;
-    const path = join(web, normalize(asked === "/" ? "/index.html" : asked));
-    if (!path.startsWith(web)) {
-      response.writeHead(403).end();
-      return;
-    }
-    try {
-      const body = await readFile(path);
-      response.writeHead(200, {
-        "content-type": TYPES[extname(path)] ?? "application/octet-stream",
-      });
-      response.end(body);
-    } catch {
-      response.writeHead(404).end();
-    }
-  });
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  origin = `http://127.0.0.1:${server.address().port}`;
+  app = await serveApp();
 });
-
-after(() => server?.close());
-
-/** Loads a page in a headless browser and returns its rendered DOM. */
-async function renderedDom(chrome, page = "/index.html", extra = []) {
-  const { stdout } = await run(
-    chrome,
-    [
-      "--headless",
-      "--disable-gpu",
-      "--no-sandbox",
-      "--virtual-time-budget=8000",
-      ...extra,
-      "--dump-dom",
-      `${origin}${page}`,
-    ],
-    { maxBuffer: 64 * 1024 * 1024 },
-  );
-  return stdout;
-}
+after(() => app?.close());
 
 /** The noteheads and rests actually drawn, left to right. */
 function drawnSequence(dom) {
@@ -162,7 +86,7 @@ test("the page offers a transport once it has a score to play", async (t) => {
     t.skip("no headless Chrome found; set CHROME to run this");
     return;
   }
-  const dom = await renderedDom(chrome);
+  const dom = await renderedDom(chrome, app.origin);
   // The button starts disabled in the markup and is enabled only once the
   // score has loaded, so finding it enabled means the whole chain worked.
   assert.match(dom, /<button id="play"[^>]*>Play<\/button>/);
@@ -176,7 +100,7 @@ test("Fixture A is drawn on the staff, in order, at the right heights", async (t
     return;
   }
 
-  const dom = await renderedDom(chrome);
+  const dom = await renderedDom(chrome, app.origin);
 
   assert.match(dom, /<p id="status">Fixture A · Melody · 4\/4 · 67 bpm<\/p>/);
   assert.match(dom, /<p id="key">1 = Ab3 · Major<\/p>/);
@@ -195,7 +119,7 @@ test("the browser can highlight what it plays", async (t) => {
 
   // A headless browser makes no sound, but it runs the same clock and the same
   // Web Audio scheduling, which is what can actually break.
-  const dom = await renderedDom(chrome, "/tests/harness.html", [
+  const dom = await renderedDom(chrome, app.origin, "/tests/harness.html", [
     "--autoplay-policy=no-user-gesture-required",
   ]);
   const found = dom.match(/<pre id="results">(.*?)<\/pre>/s);
@@ -205,11 +129,14 @@ test("the browser can highlight what it plays", async (t) => {
   assert.equal(report.error, null, `the harness threw: ${report.error}`);
   assert.deepEqual(report.problems, []);
 
-  // Fixture A: fifteen noteheads and rests drawn, thirteen of them sounding.
+  // Fixture A: fifteen noteheads and rests drawn, fifteen digits under them,
+  // thirteen of the notes sounding.
   assert.equal(report.drawn, 15);
+  assert.equal(report.numbers, 15);
   assert.equal(report.scheduled, 13);
-  // Every drawn note must be reachable, or highlighting quietly does nothing.
-  assert.equal(report.reachable, 15);
+  // Every drawn symbol must be reachable, in both notations, or highlighting
+  // quietly does nothing.
+  assert.equal(report.reachable, 30);
 
   // Two bars of 4/4 at 67 bpm.
   assert.ok(Math.abs(report.totalSeconds - (240 / 67) * 2) < 0.001);
@@ -220,6 +147,9 @@ test("the browser can highlight what it plays", async (t) => {
   assert.deepEqual(report.seen, [63, 68, 63].slice(0, report.seen.length));
 
   // Driving the highlighter is clock-free, so this part is asserted outright.
-  assert.equal(report.litForOneNote, 1, "a sounding note was not lit");
+  // One sounding note lights its notehead and its digit together.
+  assert.equal(report.litOnStaff, 1, "the notehead was not lit");
+  assert.equal(report.litInNumbers, 1, "the digit was not lit");
+  assert.equal(report.litForOneNote, 2, "the two notations disagreed");
   assert.equal(report.litAfterClear, 0, "the highlight was never cleared");
 });

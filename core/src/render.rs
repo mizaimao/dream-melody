@@ -30,7 +30,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::duration::Duration;
-use crate::jianpu::Degree;
+use crate::jianpu::{Degree, DurationMarks};
 use crate::model::{Document, TimeSignature};
 use crate::notevalue::NoteValue;
 use crate::pitch::Tpc;
@@ -139,6 +139,13 @@ pub struct RenderNote {
     /// This note runs on past the barline.
     pub tied_to_next: bool,
 
+    /// Beams under the digit, in numbered notation: one halves the beat.
+    pub beams: u32,
+    /// Whole beats to draw as dashes after the digit.
+    pub dashes: u32,
+    /// The length written as a fraction, when marks cannot say it exactly.
+    pub exact: Option<String>,
+
     /// The numbered-notation digit, `1` to `7`. `0` for a rest.
     pub degree: u32,
     /// The digit's accidental: `-1` flat, `+1` sharp.
@@ -154,6 +161,8 @@ pub fn of(document: &Document) -> Result<RenderScore, RenderError> {
         .bar_length()
         .ok_or(RenderError::InvalidTimeSignature(document.time_sig))?;
 
+    let beat = bar / i64::from(document.time_sig.beats.max(1));
+
     let mut tracks = Vec::new();
     for track in &document.tracks {
         let key_fifths = track.key_fifths();
@@ -164,6 +173,7 @@ pub fn of(document: &Document) -> Result<RenderScore, RenderError> {
             let note = segment.event.as_note();
             let value = NoteValue::of(segment.event.dur());
             let degree = note.map(|note| Degree::of(note, track.tonic_tpc, position));
+            let marks = DurationMarks::of(segment.event.dur(), beat);
 
             let drawn = RenderNote {
                 rest: note.is_none(),
@@ -188,6 +198,12 @@ pub fn of(document: &Document) -> Result<RenderScore, RenderError> {
 
                 tied_from_previous: segment.tied_to_previous,
                 tied_to_next: segment.tied_to_next,
+
+                beams: marks.beams,
+                dashes: marks.dashes,
+                exact: marks
+                    .exact
+                    .map(|value| format!("{}/{}", value.numer(), value.denom())),
 
                 degree: degree.map_or(0, |degree| degree.number),
                 degree_alteration: degree.map_or(0, |degree| degree.alteration),
@@ -269,10 +285,14 @@ mod tests {
         assert_eq!(note.degree, 5);
         assert_eq!(note.degree_alteration, 0);
         assert_eq!(note.degree_octave, 0);
-        // And what to call the length.
+        // And what to call the length, in both notations: an eighth note on a
+        // staff, one beam under the digit in numbered notation.
         assert_eq!(note.head, "eighth");
         assert_eq!(note.dots, 0);
         assert_eq!(note.tuplet, None);
+        assert_eq!(note.beams, 1);
+        assert_eq!(note.dashes, 0);
+        assert_eq!(note.exact, None);
     }
 
     #[test]
@@ -346,6 +366,83 @@ mod tests {
         assert_eq!(rest.step, "");
         assert_eq!(rest.spelling, "");
         assert_eq!(rest.head, "eighth");
+    }
+
+    #[test]
+    fn the_marks_a_digit_takes_match_the_note_it_is() {
+        let document = Document::new(
+            "Lengths",
+            TimeSignature::COMMON,
+            60,
+            [Track::new(
+                "Melody",
+                Tpc::C,
+                Mode::Major,
+                [
+                    // A whole note: one digit and three dashes.
+                    Note::new(Tpc::C, 4, ZERO, QUARTER * 4).into(),
+                    // A dotted quarter, then an eighth to fill the beat.
+                    Note::new(Tpc::C, 4, QUARTER * 4, QUARTER + EIGHTH).into(),
+                    Note::new(Tpc::C, 4, QUARTER * 4 + QUARTER + EIGHTH, EIGHTH).into(),
+                    // Two sixteenths and a half to finish the bar.
+                    Note::new(Tpc::C, 4, QUARTER * 6, EIGHTH / 2).into(),
+                    Note::new(Tpc::C, 4, QUARTER * 6 + EIGHTH / 2, EIGHTH / 2).into(),
+                    Note::new(Tpc::C, 4, QUARTER * 6 + EIGHTH, QUARTER + EIGHTH).into(),
+                ],
+            )],
+        );
+        let score = of(&document).unwrap();
+        let marks: Vec<(u32, u32, u32)> = score.tracks[0]
+            .bars
+            .iter()
+            .flat_map(|bar| &bar.notes)
+            .map(|note| (note.beams, note.dots, note.dashes))
+            .collect();
+        assert_eq!(
+            marks,
+            [
+                (0, 0, 3), // whole: three dashes
+                (0, 1, 0), // dotted quarter: one dot
+                (1, 0, 0), // eighth: one beam
+                (2, 0, 0), // sixteenth: two beams
+                (2, 0, 0),
+                (0, 1, 0), // dotted quarter again
+            ]
+        );
+        assert!(
+            score.tracks[0]
+                .bars
+                .iter()
+                .flat_map(|bar| &bar.notes)
+                .all(|note| note.exact.is_none())
+        );
+    }
+
+    #[test]
+    fn a_length_no_marks_can_say_is_given_as_a_fraction() {
+        let third = QUARTER / 3;
+        let document = Document::new(
+            "Triplet",
+            TimeSignature {
+                beats: 1,
+                beat_value: 4,
+            },
+            60,
+            [Track::new(
+                "Melody",
+                Tpc::C,
+                Mode::Major,
+                [
+                    Note::new(Tpc::C, 4, ZERO, third).into(),
+                    Note::new(Tpc::C, 4, third, third).into(),
+                    Note::new(Tpc::C, 4, third * 2, third).into(),
+                ],
+            )],
+        );
+        let score = of(&document).unwrap();
+        let note = &score.tracks[0].bars[0].notes[0];
+        assert_eq!(note.exact.as_deref(), Some("1/12"));
+        assert_eq!((note.beams, note.dots, note.dashes), (0, 0, 0));
     }
 
     #[test]

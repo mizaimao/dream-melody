@@ -139,6 +139,61 @@ button:disabled {
   stroke: var(--accent);
 }
 
+#jianpu {
+  margin: 0;
+  padding: 0.75rem 0 0.5rem;
+  border-bottom: 1px solid var(--rule);
+  overflow-x: auto;
+}
+
+.jianpu {
+  display: block;
+}
+
+.jianpu .digit {
+  font-family: "Iowan Old Style", Palatino, Georgia, serif;
+  font-size: 21px;
+  fill: var(--ink);
+}
+
+.jianpu .accidental,
+.jianpu .exact {
+  font-family: "Iowan Old Style", Palatino, Georgia, serif;
+  font-size: 12px;
+  fill: var(--quiet);
+}
+
+.jianpu .octave,
+.jianpu .augmentation {
+  fill: var(--ink);
+}
+
+.jianpu .beam,
+.jianpu .dash,
+.jianpu .barline {
+  stroke: var(--ink);
+  stroke-width: 1.2;
+}
+
+.jianpu .barline.thick {
+  stroke-width: 2.4;
+}
+
+.jianpu .tie {
+  fill: none;
+  stroke: var(--quiet);
+  stroke-width: 1.1;
+}
+
+/* The digit now sounding, matching the staff above it. */
+.jianpu .symbol.sounding text,
+.jianpu .symbol.sounding circle {
+  fill: var(--accent);
+}
+.jianpu .symbol.sounding line {
+  stroke: var(--accent);
+}
+
 #problems {
   margin: 1.25rem 0 0;
   padding-left: 1.1rem;

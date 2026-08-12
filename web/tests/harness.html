@@ -24,11 +24,13 @@
   </head>
   <body>
     <div id="staff"></div>
+    <div id="jianpu"></div>
     <pre id="results">running</pre>
 
     <script type="module">
       import init, { Score } from "../wasm/dream_melody_wasm.js";
       import { drawStaff } from "../staff.js";
+      import { drawJianpu } from "../jianpu.js";
       import { createPlayer } from "../playback.js";
       import { createHighlighter } from "../highlight.js";
 
@@ -44,7 +46,8 @@
         score.free();
 
         const drawn = drawStaff(document.querySelector("#staff"), view);
-        const highlight = createHighlighter(drawn.notes);
+        const numbers = drawJianpu(document.querySelector("#jianpu"), view);
+        const highlight = createHighlighter([...drawn.notes, ...numbers.notes]);
 
         // Every note that was drawn should be reachable for highlighting. If
         // VexFlow stops handing back SVG elements, this is what notices.
@@ -74,19 +77,24 @@
         // that does not depend on a clock — that driving the highlighter lights
         // the right noteheads and clears them again.
         highlight(player.schedule[1]);
-        const litForOneNote =
-          document.querySelectorAll("#staff .sounding").length;
+        // One note, lit in both notations at once.
+        const litForOneNote = document.querySelectorAll(".sounding").length;
+        const litOnStaff = document.querySelectorAll("#staff .sounding").length;
+        const litInNumbers =
+          document.querySelectorAll("#jianpu .sounding").length;
         highlight(null);
-        const litAfterClear =
-          document.querySelectorAll("#staff .sounding").length;
+        const litAfterClear = document.querySelectorAll(".sounding").length;
 
         results.textContent = JSON.stringify({
           drawn: drawn.notes.length,
+          numbers: numbers.notes.length,
           reachable,
           scheduled: player.schedule.length,
           totalSeconds: Number(player.total.toFixed(4)),
           seen,
           litForOneNote,
+          litOnStaff,
+          litInNumbers,
           litAfterClear,
           problems: drawn.problems,
           error,

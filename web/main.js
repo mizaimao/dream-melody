@@ -13,12 +13,14 @@
 
 import init, { Score } from "./wasm/dream_melody_wasm.js";
 import { drawStaff } from "./staff.js";
+import { drawJianpu } from "./jianpu.js";
 import { createPlayer } from "./playback.js";
 import { createHighlighter } from "./highlight.js";
 
 const staffElement = document.querySelector("#staff");
 const statusElement = document.querySelector("#status");
 const keyElement = document.querySelector("#key");
+const jianpuElement = document.querySelector("#jianpu");
 const problemsElement = document.querySelector("#problems");
 const playElement = document.querySelector("#play");
 
@@ -49,11 +51,15 @@ async function main() {
   keyElement.textContent = `1 = ${track.tonic}${track.register} · ${track.mode}`;
 
   const drawn = drawStaff(staffElement, view);
+  const numbers = drawJianpu(jianpuElement, view);
   report([...score.problems(), ...drawn.problems]);
 
-  const highlight = createHighlighter(drawn.notes);
+  // One highlighter over both drawings, so a sounding note lights up in the
+  // staff and in the numbers at the same instant. It is replaced on a redraw,
+  // so the transport calls through the variable rather than holding one.
+  let highlight = createHighlighter([...drawn.notes, ...numbers.notes]);
   const player = createPlayer(view, {
-    onSounding: highlight,
+    onSounding: (entry) => highlight(entry),
     onStop: () => {
       playElement.textContent = "Play";
       playElement.dataset.playing = "false";
@@ -74,9 +80,20 @@ async function main() {
     await player.play();
   });
 
-  // Handy while this is read-only: the same score, in the other notation.
+  // The same music as text, for anyone who wants to copy it out.
   console.log(score.toJianpu());
   score.free();
+
+  // Redraw on resize so the staff keeps filling the width.
+  let pending = 0;
+  globalThis.addEventListener("resize", () => {
+    clearTimeout(pending);
+    pending = setTimeout(() => {
+      const again = drawStaff(staffElement, view);
+      const numbersAgain = drawJianpu(jianpuElement, view);
+      highlight = createHighlighter([...again.notes, ...numbersAgain.notes]);
+    }, 120);
+  });
 }
 
 main().catch((error) => {

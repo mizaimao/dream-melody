@@ -153,35 +153,86 @@ fn syntax<T>(line: usize, message: impl Into<String>) -> Result<T, JianpuError> 
 
 // --- durations -------------------------------------------------------------
 
-/// The largest number of dots and halvings worth spelling out. Beyond this the
+/// The largest number of dots and beams worth spelling out. Beyond this the
 /// exact form is both shorter and clearer.
 const MAX_DOTS: u32 = 3;
-const MAX_HALVINGS: u32 = 6;
+const MAX_BEAMS: u32 = 6;
+
+/// How numbered notation writes a length.
+///
+/// A digit sits on the beat. Beams under it halve that, dots after it lengthen
+/// it by half, and dashes after it add whole beats. Anything those cannot say
+/// exactly is stated as a fraction instead of being rounded to something close.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DurationMarks {
+    /// Beams under the digit. One is half a beat, two is a quarter of one.
+    pub beams: u32,
+    /// Augmentation dots after the digit.
+    pub dots: u32,
+    /// Whole beats added after the digit, each drawn as a dash.
+    pub dashes: u32,
+    /// The exact length, when no combination of the above says it.
+    pub exact: Option<Duration>,
+}
+
+impl DurationMarks {
+    /// How numbered notation writes `dur`, given what one beat is worth.
+    ///
+    /// Both the text format and the renderer go through here, so a length is
+    /// never written one way and drawn another.
+    pub fn of(dur: Duration, beat: Duration) -> DurationMarks {
+        let plain = DurationMarks {
+            beams: 0,
+            dots: 0,
+            dashes: 0,
+            exact: None,
+        };
+        let beats = dur / beat;
+
+        if beats.is_integer() && *beats.numer() >= 1 {
+            return DurationMarks {
+                dashes: (beats.to_integer() - 1) as u32,
+                ..plain
+            };
+        }
+
+        for dots in 0..=MAX_DOTS {
+            for beams in 0..=MAX_BEAMS {
+                let numer = (1i64 << (dots + 1)) - 1;
+                let denom = 1i64 << (dots + beams);
+                if beats == Ratio::new(numer, denom) {
+                    return DurationMarks {
+                        beams,
+                        dots,
+                        ..plain
+                    };
+                }
+            }
+        }
+
+        DurationMarks {
+            exact: Some(dur),
+            ..plain
+        }
+    }
+
+    /// The marks as they attach to a digit in the text format.
+    fn to_text(self) -> String {
+        if let Some(exact) = self.exact {
+            return format!("[{}/{}]", exact.numer(), exact.denom());
+        }
+        let mut marks = "_".repeat(self.beams as usize);
+        marks.push_str(&".".repeat(self.dots as usize));
+        marks
+    }
+}
 
 /// Writes a duration as jianpu marks, given what one beat is worth.
 ///
 /// Returns the marks that attach to the digit and how many ` -` tokens follow.
 fn encode_duration(dur: Duration, beat: Duration) -> (String, u32) {
-    let beats = dur / beat;
-
-    if beats.is_integer() && *beats.numer() >= 1 {
-        return (String::new(), (beats.to_integer() - 1) as u32);
-    }
-
-    for dots in 0..=MAX_DOTS {
-        for halvings in 0..=MAX_HALVINGS {
-            let numer = (1i64 << (dots + 1)) - 1;
-            let denom = 1i64 << (dots + halvings);
-            if beats == Ratio::new(numer, denom) {
-                let mut marks = "_".repeat(halvings as usize);
-                marks.push_str(&".".repeat(dots as usize));
-                return (marks, 0);
-            }
-        }
-    }
-
-    // Nothing standard fits — a triplet, or something stranger. Say it exactly.
-    (format!("[{}/{}]", dur.numer(), dur.denom()), 0)
+    let marks = DurationMarks::of(dur, beat);
+    (marks.to_text(), marks.dashes)
 }
 
 /// Reads the duration marks attached to a digit.
@@ -205,7 +256,7 @@ fn decode_duration(marks: &str, beat: Duration, line: usize) -> Result<Duration,
     if halvings + dots != marks.len() {
         return syntax(line, format!("\"{marks}\" is not a duration"));
     }
-    if halvings as u32 > MAX_HALVINGS || dots as u32 > MAX_DOTS {
+    if halvings as u32 > MAX_BEAMS || dots as u32 > MAX_DOTS {
         return syntax(line, format!("\"{marks}\" is longer than makes sense"));
     }
 
