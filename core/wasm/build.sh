@@ -56,4 +56,4 @@ wasm-bindgen --target nodejs --out-dir "$here/pkg-node" "$binary"
 
 echo "done. run the JS tests with:"
 echo "  node --test 'core/wasm/tests/*.test.mjs'   # the bindings"
-echo "  node --test 'web/tests/*.test.mjs'         # what reaches the page"
+echo "  node --test 'web-tests/*.test.mjs'         # what reaches the page"

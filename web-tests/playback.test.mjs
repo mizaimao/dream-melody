@@ -13,7 +13,7 @@
 // be wrong to the ear: a tie struck twice, a rest that sounds, a tempo applied
 // to the wrong unit.
 //
-// Run with:  node --test 'web/tests/*.test.mjs'
+// Run with:  node --test 'web-tests/*.test.mjs'
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -21,13 +21,13 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
-import { buildSchedule, durationOf, frequencyOf } from "../playback.js";
+import { buildSchedule, durationOf, frequencyOf } from "../web/playback.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
-const { Score } = require("../../core/wasm/pkg-node/dream_melody_wasm.js");
+const { Score } = require("../core/wasm/pkg-node/dream_melody_wasm.js");
 const fixture = require("node:fs").readFileSync(
-  join(here, "..", "fixture-a.json"),
+  join(here, "..", "web", "fixture-a.json"),
   "utf8",
 );
 

@@ -16,7 +16,7 @@ import { dirname, join, extname, normalize } from "node:path";
 import { promisify } from "node:util";
 
 const run = promisify(execFile);
-const web = dirname(dirname(fileURLToPath(import.meta.url)));
+const web = join(dirname(dirname(fileURLToPath(import.meta.url))), "web");
 
 const CHROMES = [
   process.env.CHROME,
@@ -51,10 +51,15 @@ export async function findChrome() {
 
 /** Serves the app on a free loopback port. */
 export async function serveApp() {
+  // The harness lives outside web/ so it is never shipped, but it must still
+  // be reachable from the same origin as the modules it drives.
+  const tests = dirname(fileURLToPath(import.meta.url));
   const server = createServer(async (request, response) => {
     const asked = new URL(request.url, "http://localhost").pathname;
-    const path = join(web, normalize(asked === "/" ? "/index.html" : asked));
-    if (!path.startsWith(web)) {
+    const root = asked.startsWith("/tests/") ? tests : web;
+    const from = asked.startsWith("/tests/") ? asked.slice("/tests".length) : asked;
+    const path = join(root, normalize(from === "/" ? "/index.html" : from));
+    if (!path.startsWith(root)) {
       response.writeHead(403).end();
       return;
     }

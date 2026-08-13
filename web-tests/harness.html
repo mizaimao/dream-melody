@@ -10,6 +10,7 @@
 
   A test harness, not a page anyone visits.
 
+  It lives outside web/ so it is not embedded in the shipped application.
   It drives the real modules in a real browser and writes what happened into
   #results, where the Node test suite reads it. This exists so the production
   page needs no test hooks in it: the things that can only be checked in a
@@ -20,7 +21,7 @@
   <head>
     <meta charset="utf-8" />
     <title>Dream Melody — harness</title>
-    <script src="../vendor/vexflow-bravura.js"></script>
+    <script src="/vendor/vexflow-bravura.js"></script>
   </head>
   <body>
     <div id="staff"></div>
@@ -28,19 +29,19 @@
     <pre id="results">running</pre>
 
     <script type="module">
-      import init, { Score } from "../wasm/dream_melody_wasm.js";
-      import { drawStaff } from "../staff.js";
-      import { drawJianpu } from "../jianpu.js";
-      import { createPlayer } from "../playback.js";
-      import { createHighlighter } from "../highlight.js";
+      import init, { Score } from "/wasm/dream_melody_wasm.js";
+      import { drawStaff } from "/staff.js";
+      import { drawJianpu } from "/jianpu.js";
+      import { createPlayer } from "/playback.js";
+      import { createHighlighter } from "/highlight.js";
 
       const results = document.querySelector("#results");
       const wait = (ms) => new Promise((done) => setTimeout(done, ms));
 
       async function run() {
-        await init({ module_or_path: "../wasm/dream_melody_wasm_bg.wasm" });
+        await init({ module_or_path: "/wasm/dream_melody_wasm_bg.wasm" });
         const score = Score.fromJson(
-          await (await fetch("../fixture-a.json")).text(),
+          await (await fetch("/fixture-a.json")).text(),
         );
         const view = JSON.parse(score.renderJson());
         score.free();

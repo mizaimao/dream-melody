@@ -15,7 +15,7 @@
 // bar and reordered the music. Nothing but reading the drawn glyphs would have
 // caught it.
 //
-// Run with:  node --test 'web/tests/*.test.mjs'
+// Run with:  node --test 'web-tests/*.test.mjs'
 // Build the wasm first with:  core/wasm/build.sh
 
 import { test, before, after } from "node:test";

@@ -221,7 +221,7 @@ dream-melody/
 │                    serializers. Zero UI dependencies. Exhaustively tested.
 ├── core/wasm/       dream-melody-wasm — wasm-bindgen wrapper. Same core,
 │                    running in the browser.
-├── web/             Static ES modules, no bundler. Canvas editor + VexFlow.
+├── web/             Static ES modules, no bundler. SVG editor + VexFlow.
 ├── src-tauri/       Tauri desktop shell. Thin; delegates to core.
 └── SPEC.md
 ```
@@ -236,6 +236,10 @@ engine, a beaming algorithm, or accidental placement logic. Write the
 model -> VexFlow adapter and a hit-testing layer for mouse interaction.
 
 The jianpu renderer **is** written from scratch — that is the novel part.
+It draws SVG, not canvas. The digits are text, highlighting is a class on an
+element, and hit-testing is a DOM lookup rather than a hand-kept table of
+rectangles; canvas would mean re-implementing all three. VexFlow renders to SVG
+for the same reasons.
 
 Playback is Web Audio `OscillatorNode`. Nothing more.
 
@@ -270,6 +274,12 @@ Strictly sequential. Do not start a stage before the previous one's tests pass.
 8. `web`: jianpu rendered below the staff, live.
 9. `web`: click-to-place note entry, duration selector, bar validation.
 10. `src-tauri`: desktop shell.
+
+**Stage 10 was brought forward, ahead of stage 9.** The application is meant to
+be a self-contained local executable rather than a page, so note entry is worth
+building inside the real shell rather than porting into it afterwards. The shell
+is thin either way: it owns a window, and everything worth testing stays on the
+other side of that boundary where it can be tested without one.
 
 **The UI is last on purpose.** It is the fastest part to write and the part
 most likely to be thrown away. Everything above it must be correct first.

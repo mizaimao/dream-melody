@@ -13,7 +13,7 @@
 // as text, then compares that with the text format the core writes for the same
 // score. If the drawing and the writing ever disagree, one of them is wrong.
 //
-// Run with:  node --test 'web/tests/*.test.mjs'
+// Run with:  node --test 'web-tests/*.test.mjs'
 
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -99,9 +99,9 @@ test("the drawing and the text format agree, symbol for symbol", async (t) => {
   // is ours and the text is the core's, and they must say the same thing.
   const { createRequire } = await import("node:module");
   const require = createRequire(import.meta.url);
-  const { Score } = require("../../core/wasm/pkg-node/dream_melody_wasm.js");
+  const { Score } = require("../core/wasm/pkg-node/dream_melody_wasm.js");
   const fixture = require("node:fs").readFileSync(
-    new URL("../fixture-a.json", import.meta.url),
+    new URL("../web/fixture-a.json", import.meta.url),
     "utf8",
   );
   const score = Score.fromJson(fixture);

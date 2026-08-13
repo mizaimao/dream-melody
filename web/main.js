@@ -80,6 +80,13 @@ async function main() {
     await player.play();
   });
 
+  // Running inside the desktop shell, say so, so a failure shows up in the
+  // terminal rather than only in a developer console nobody opened.
+  globalThis.__TAURI__?.core?.invoke("interface_ready", {
+    summary: statusElement.textContent,
+    problems: [...score.problems(), ...drawn.problems],
+  });
+
   // The same music as text, for anyone who wants to copy it out.
   console.log(score.toJianpu());
   score.free();

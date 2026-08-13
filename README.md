@@ -11,23 +11,28 @@ including the ones that need double accidentals.
 ## Running it
 
 ```sh
-core/wasm/build.sh          # once, and after any change to core
+core/wasm/build.sh              # once, and after any change to core
+cargo run -p dream-melody-tauri # the desktop application
+```
+
+The interface is embedded in the executable, so the application is one file
+that needs no server and no network. The wasm is generated rather than
+committed, so the first step is not optional.
+
+There is also a browser runner, useful when the developer tools are wanted:
+
+```sh
 cargo run -p dream-melody-dev
 ```
 
-That builds the browser bindings, serves the app on a loopback address and
-opens it. The wasm is generated rather than committed, so the first step is not
-optional.
-
-A self-contained desktop application is the eventual shape of this — see stage
-10 in [SPEC.md](SPEC.md). The runner above is scaffolding until then.
+It serves the same interface on a loopback address and opens a browser.
 
 ## Testing
 
 ```sh
 cargo test --workspace                  # the model, the formats, the runner
 node --test 'core/wasm/tests/*.test.mjs' # the browser bindings
-node --test 'web/tests/*.test.mjs'       # what actually reaches the page
+node --test 'web-tests/*.test.mjs'       # what actually reaches the page
 ```
 
 The last of these drives a real headless browser and reads the drawn SVG,
